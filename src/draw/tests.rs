@@ -477,3 +477,18 @@ fn orders_badges_head_then_local_then_remote_then_tags_keeping_git_order_within_
         "○ aaaaaaa 1 day ago Ann [HEAD] [zeta] [feature/a] [origin/feature/a] [◆ v1] subject"
     );
 }
+
+#[test]
+fn colours_each_junction_segment_like_the_corner_that_ends_it() {
+    let log = [
+        line("mmmmmmm", "bbbbbbb sssssss ttttttt", "", "1 day ago", "Ann", "m"),
+        line("bbbbbbb", "", "", "1 day ago", "Ann", "b"),
+    ]
+    .join("\n");
+
+    let buffer = draw(&log, 40, 2);
+
+    assert_eq!(graph(&buffer, 0, 5), "●─╮─╮");
+    let colours: Vec<Color> = (1..5).map(|x| buffer[(x, 0)].fg).collect();
+    assert_eq!(colours, [BLUE, BLUE, GREEN, GREEN]);
+}
