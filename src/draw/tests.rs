@@ -359,7 +359,7 @@ fn shows_the_refs_of_a_commit_as_badges_before_its_message() {
 
     assert_eq!(
         row_text(&buffer, 0).trim_end(),
-        "○ aaaaaaa 1 day ago Ann [HEAD] [main] [origin/main] [v1.0] subject"
+        "○ aaaaaaa 1 day ago Ann [HEAD] [main] [origin/main] [◆ v1.0] subject"
     );
 }
 
@@ -389,7 +389,7 @@ fn dims_a_remote_branch_badge() {
 fn colours_a_tag_badge_in_yellow() {
     let buffer = draw(&badge_log("tag: refs/tags/v1.0"), 80, 1);
 
-    assert_eq!(colour_at(&buffer, 0, "[v1.0]"), YELLOW);
+    assert_eq!(colour_at(&buffer, 0, "[◆ v1.0]"), YELLOW);
 }
 
 #[test]

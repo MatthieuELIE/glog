@@ -68,13 +68,20 @@ fn badge_style(reference: &Ref, node_color: usize) -> Style {
     }
 }
 
+fn badge_label(reference: &Ref) -> String {
+    match reference.kind {
+        RefKind::Tag => format!("[◆ {}]", reference.name),
+        _ => format!("[{}]", reference.name),
+    }
+}
+
 fn badge_spans(commit: &Commit, row: &GraphRow) -> Vec<Span<'static>> {
     commit
         .refs
         .iter()
         .flat_map(|reference| {
             [
-                Span::styled(format!("[{}]", reference.name), badge_style(reference, row.node_color)),
+                Span::styled(badge_label(reference), badge_style(reference, row.node_color)),
                 Span::raw(" "),
             ]
         })
