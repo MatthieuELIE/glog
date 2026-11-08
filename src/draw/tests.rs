@@ -331,3 +331,94 @@ fn a_new_lane_takes_the_leftmost_free_column() {
     assert_eq!(graph(&buffer, 1, 3), "│ ●");
     assert_eq!(graph(&buffer, 2, 3), "│ ●");
 }
+
+fn badge_log(refs: &str) -> String {
+    line("aaaaaaa", "", refs, "1 day ago", "Ann", "subject")
+}
+
+fn colour_at(buffer: &Buffer, y: u16, text: &str) -> Color {
+    let row = row_text(buffer, y);
+    let x = row.find(text).unwrap_or_else(|| panic!("{text} not in {row}"));
+
+    buffer[(row[..x].chars().count() as u16, y)].fg
+}
+
+#[test]
+fn shows_the_refs_of_a_commit_as_badges_before_its_message() {
+    let log = badge_log("HEAD -> refs/heads/main, refs/remotes/origin/main, refs/remotes/origin/HEAD, tag: refs/tags/v1.0");
+
+    let buffer = draw(&log, 80, 1);
+
+    assert_eq!(
+        row_text(&buffer, 0).trim_end(),
+        "○ aaaaaaa 1 day ago Ann [HEAD] [main] [origin/main] [v1.0] subject"
+    );
+}
+
+#[test]
+fn colours_a_local_branch_badge_in_the_lane_colour_of_its_commit() {
+    let log = [
+        line("ccccccc", "bbbbbbb", "", "1 day ago", "Ann", "c"),
+        line("bbbbbbb", "aaaaaaa", "", "1 day ago", "Ann", "b"),
+        line("sssssss", "aaaaaaa", "refs/heads/side", "1 day ago", "Ann", "s"),
+        line("aaaaaaa", "", "", "1 day ago", "Ann", "a"),
+    ]
+    .join("\n");
+
+    let buffer = draw(&log, 60, 4);
+
+    assert_eq!(colour_at(&buffer, 2, "[side]"), BLUE);
+}
+
+#[test]
+fn dims_a_remote_branch_badge() {
+    let buffer = draw(&badge_log("refs/remotes/origin/main"), 80, 1);
+
+    assert_eq!(colour_at(&buffer, 0, "[origin/main]"), Color::Rgb(0x6c, 0x70, 0x86));
+}
+
+#[test]
+fn colours_a_tag_badge_in_yellow() {
+    let buffer = draw(&badge_log("tag: refs/tags/v1.0"), 80, 1);
+
+    assert_eq!(colour_at(&buffer, 0, "[v1.0]"), YELLOW);
+}
+
+#[test]
+fn highlights_head_on_a_branch_and_detached() {
+    let on_branch = draw(&badge_log("HEAD -> refs/heads/main"), 80, 1);
+    let detached = draw(&badge_log("HEAD"), 80, 1);
+
+    for buffer in [&on_branch, &detached] {
+        let x = row_text(buffer, 0).find("[HEAD]").unwrap() as u16;
+        assert!(buffer[(x, 0)].modifier.contains(ratatui::style::Modifier::BOLD));
+        assert_eq!(buffer[(x, 0)].fg, Color::Rgb(0xcd, 0xd6, 0xf4));
+    }
+    assert!(!row_text(&detached, 0).contains("[main]"));
+}
+
+#[test]
+fn gives_origin_head_no_badge() {
+    let buffer = draw(&badge_log("refs/remotes/origin/HEAD"), 80, 1);
+
+    assert!(!row_text(&buffer, 0).contains('['));
+}
+
+#[test]
+fn leaves_the_terminal_background_unpainted_under_badges() {
+    let log = [
+        line("bbbbbbb", "aaaaaaa", "", "1 day ago", "Ann", "child"),
+        badge_log("HEAD -> refs/heads/main, tag: refs/tags/v1.0"),
+    ]
+    .join("\n");
+    let buffer = draw(&log, 80, 2);
+
+    assert!((0..80).all(|x| buffer[(x, 1)].bg == Color::Reset));
+}
+
+#[test]
+fn truncates_the_message_after_the_badges_in_a_narrow_terminal() {
+    let buffer = draw(&badge_log("refs/heads/main"), 36, 1);
+
+    assert_eq!(row_text(&buffer, 0), "● aaaaaaa 1 day ago Ann [main] subj…");
+}
