@@ -14,4 +14,7 @@ fn reads_real_commits_of_a_linear_repository() {
 
     let subjects: Vec<_> = commits.iter().map(|commit| commit.subject.as_str()).collect();
     assert_eq!(subjects, ["second", "first"]);
+    assert!(commits.iter().all(|commit| commit.hash.len() == 7));
+    assert!(commits.iter().all(|commit| commit.date.ends_with("ago")));
+    assert!(commits.iter().all(|commit| commit.author == "Ann"));
 }
