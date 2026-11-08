@@ -54,6 +54,38 @@ fn aligns_graph_hash_date_author_and_message_columns() {
 }
 
 #[test]
+fn draws_head_as_a_hollow_node_and_other_commits_as_filled_nodes() {
+    let log = [
+        line("bbbbbbbb", "aaaaaaaa", "origin/main", "1 day ago", "Ann", "second"),
+        line("aaaaaaaa", "", "HEAD -> main, tag: v1", "2 days ago", "Ann", "first"),
+        line("cccccccc", "", "HEAD", "3 days ago", "Ann", "detached"),
+    ]
+    .join("\n");
+
+    let buffer = draw(&log, 40, 3);
+
+    assert!(row_text(&buffer, 0).starts_with('●'));
+    assert!(row_text(&buffer, 1).starts_with('○'));
+    assert!(row_text(&buffer, 2).starts_with('○'));
+}
+
+#[test]
+fn aligns_columns_by_display_width_for_wide_characters() {
+    let log = [
+        line("1234567890abcdef", "", "", "3 days ago", "山田", "Wide"),
+        line("fedcba0987654321", "", "", "3 days ago", "Ann", "Narrow"),
+    ]
+    .join("\n");
+
+    let buffer = draw(&log, 40, 2);
+
+    let column_of = |y: u16, symbol: &str| (0..40).find(|&x| buffer[(x, y)].symbol() == symbol);
+
+    assert_eq!(column_of(0, "W"), column_of(1, "N"));
+    assert!(column_of(0, "W").is_some());
+}
+
+#[test]
 fn truncates_the_message_first_in_a_narrow_terminal() {
     let buffer = draw(&two_commits(), 38, 2);
 

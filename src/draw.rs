@@ -4,6 +4,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::Paragraph,
 };
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
     parse::Commit,
@@ -11,6 +12,7 @@ use crate::{
 };
 
 const NODE: &str = "●";
+const HEAD_NODE: &str = "○";
 const HASH_WIDTH: usize = 7;
 const SEPARATORS_WIDTH: usize = 4;
 const ELLIPSIS: char = '…';
@@ -18,32 +20,67 @@ const ELLIPSIS: char = '…';
 fn column_width(commits: &[Commit], field: fn(&Commit) -> &str) -> usize {
     commits
         .iter()
-        .map(|commit| field(commit).chars().count())
+        .map(|commit| field(commit).width())
         .max()
         .unwrap_or(0)
 }
 
+fn node(commit: &Commit) -> &'static str {
+    if commit.is_head {
+        return HEAD_NODE;
+    }
+
+    NODE
+}
+
+fn pad(text: &str, width: usize) -> String {
+    let padding = width.saturating_sub(text.width());
+
+    format!("{text}{}", " ".repeat(padding))
+}
+
 fn truncate(text: &str, width: usize) -> String {
-    if text.chars().count() <= width {
+    if text.width() <= width {
         return text.to_string();
     }
 
-    let kept: String = text.chars().take(width.saturating_sub(1)).collect();
+    let mut kept = String::new();
+    let mut kept_width = 0;
+    for character in text.chars() {
+        let character_width = character.width().unwrap_or(0);
+        if kept_width + character_width >= width {
+            break;
+        }
+        kept.push(character);
+        kept_width += character_width;
+    }
 
-    format!("{kept}{ELLIPSIS}")
+    if width > 0 {
+        kept.push(ELLIPSIS);
+    }
+
+    kept
 }
 
-fn commit_line(commit: &Commit, date_width: usize, author_width: usize, message_width: usize) -> Line<'static> {
+fn commit_line(
+    commit: &Commit,
+    date_width: usize,
+    author_width: usize,
+    message_width: usize,
+) -> Line<'static> {
     Line::from(vec![
-        Span::styled(NODE, Style::new().fg(MAUVE)),
+        Span::styled(node(commit), Style::new().fg(MAUVE)),
         Span::raw(" "),
         Span::styled(commit.hash.clone(), Style::new().fg(OVERLAY)),
         Span::raw(" "),
-        Span::styled(format!("{:<date_width$}", commit.date), Style::new().fg(SUBTEXT)),
+        Span::styled(pad(&commit.date, date_width), Style::new().fg(SUBTEXT)),
         Span::raw(" "),
-        Span::styled(format!("{:<author_width$}", commit.author), Style::new().fg(SUBTEXT)),
+        Span::styled(pad(&commit.author, author_width), Style::new().fg(SUBTEXT)),
         Span::raw(" "),
-        Span::styled(truncate(&commit.subject, message_width), Style::new().fg(TEXT)),
+        Span::styled(
+            truncate(&commit.subject, message_width),
+            Style::new().fg(TEXT),
+        ),
     ])
 }
 
