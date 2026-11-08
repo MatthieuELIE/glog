@@ -16,11 +16,7 @@ const HASH_WIDTH: usize = 7;
 const SEPARATORS_WIDTH: usize = 4;
 const ELLIPSIS: char = '…';
 fn column_width(commits: &[Commit], field: fn(&Commit) -> &str) -> usize {
-    commits
-        .iter()
-        .map(|commit| field(commit).width())
-        .max()
-        .unwrap_or(0)
+    commits.iter().map(|commit| field(commit).width()).max().unwrap_or(0)
 }
 
 fn pad(text: &str, width: usize) -> String {
@@ -88,13 +84,7 @@ fn badge_spans(commit: &Commit, row: &GraphRow) -> Vec<Span<'static>> {
         .collect()
 }
 
-fn commit_line(
-    commit: &Commit,
-    row: &GraphRow,
-    date_width: usize,
-    author_width: usize,
-    message_width: usize,
-) -> Line<'static> {
+fn commit_line(commit: &Commit, row: &GraphRow, date_width: usize, author_width: usize, message_width: usize) -> Line<'static> {
     let mut spans = graph_spans(row);
     spans.extend([
         Span::raw(" "),

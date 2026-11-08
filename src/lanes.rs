@@ -55,10 +55,7 @@ fn pad_rows(rows: Vec<GraphRow>) -> Vec<GraphRow> {
 }
 
 fn leftmost_free(columns: &Columns) -> usize {
-    columns
-        .iter()
-        .position(Option::is_none)
-        .unwrap_or(columns.len())
+    columns.iter().position(Option::is_none).unwrap_or(columns.len())
 }
 
 fn claim(columns: &mut Columns, lane: Lane) -> usize {
@@ -100,23 +97,22 @@ fn place_row(columns: &Columns, next_color: usize, commit: &Commit) -> (GraphRow
     if node_column == next.len() {
         next.push(None);
     }
-    next[node_column] = commit
-        .parents
-        .first()
-        .map(|parent| Lane { expects: parent.clone(), color });
+    next[node_column] = commit.parents.first().map(|parent| Lane {
+        expects: parent.clone(),
+        color,
+    });
 
-    let joined: Vec<(usize, usize)> = joining
-        .iter()
-        .skip(1)
-        .map(|&column| (column, lane_color(columns, column)))
-        .collect();
+    let joined: Vec<(usize, usize)> = joining.iter().skip(1).map(|&column| (column, lane_color(columns, column))).collect();
     for &(column, _) in &joined {
         next[column] = None;
     }
 
     let mut opened = Vec::new();
     for parent in commit.parents.iter().skip(1) {
-        let lane = Lane { expects: parent.clone(), color: next_color };
+        let lane = Lane {
+            expects: parent.clone(),
+            color: next_color,
+        };
         opened.push((claim(&mut next, lane), next_color));
         next_color += 1;
     }
@@ -166,7 +162,10 @@ fn draw_cells(
         if let Some(lane) = lane
             && !joining.contains(&column)
         {
-            cells[2 * column] = Cell { symbol: '│', color: lane.color };
+            cells[2 * column] = Cell {
+                symbol: '│',
+                color: lane.color,
+            };
         }
     }
     for &(column, color, left, right) in &ends {
@@ -174,7 +173,11 @@ fn draw_cells(
         cells[2 * column] = Cell { symbol, color };
     }
 
-    let symbol = if commit.refs.iter().any(|reference| reference.kind == RefKind::Head) { HEAD_NODE } else { NODE };
+    let symbol = if commit.refs.iter().any(|reference| reference.kind == RefKind::Head) {
+        HEAD_NODE
+    } else {
+        NODE
+    };
     cells[2 * node_column] = Cell { symbol, color };
 
     cells
