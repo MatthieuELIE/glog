@@ -1,4 +1,4 @@
-use ratatui::{Terminal, backend::TestBackend, buffer::Buffer};
+use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, style::Color};
 
 use crate::{draw::render, parse::parse};
 
@@ -35,4 +35,37 @@ fn shows_one_row_per_commit_newest_first() {
     assert!(row_text(&buffer, 0).contains("second"));
     assert!(row_text(&buffer, 1).contains("first"));
     assert_eq!(row_text(&buffer, 2).trim(), "");
+}
+
+fn two_commits() -> String {
+    [
+        line("1234567890abcdef", "fedcba0987654321", "", "3 days ago", "Ann", "short subject"),
+        line("fedcba0987654321", "", "", "2 weeks ago", "Bartholomew", "older"),
+    ]
+    .join("\n")
+}
+
+#[test]
+fn aligns_graph_hash_date_author_and_message_columns() {
+    let buffer = draw(&two_commits(), 60, 2);
+
+    assert_eq!(row_text(&buffer, 0).trim_end(), "● 1234567 3 days ago  Ann         short subject");
+    assert_eq!(row_text(&buffer, 1).trim_end(), "● fedcba0 2 weeks ago Bartholomew older");
+}
+
+#[test]
+fn truncates_the_message_first_in_a_narrow_terminal() {
+    let buffer = draw(&two_commits(), 38, 2);
+
+    assert_eq!(row_text(&buffer, 0), "● 1234567 3 days ago  Ann         sho…");
+}
+
+#[test]
+fn colours_hash_in_overlay_and_text_in_text_and_subtext() {
+    let buffer = draw(&two_commits(), 60, 1);
+
+    assert_eq!(buffer[(2, 0)].fg, Color::Rgb(0x6c, 0x70, 0x86));
+    assert_eq!(buffer[(10, 0)].fg, Color::Rgb(0xa6, 0xad, 0xc8));
+    assert_eq!(buffer[(34, 0)].fg, Color::Rgb(0xcd, 0xd6, 0xf4));
+    assert_eq!(buffer[(34, 0)].bg, Color::Reset);
 }
