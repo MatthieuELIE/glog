@@ -5,4 +5,8 @@ pub fn press(state: &mut ListState, key: char, len: usize) {
     if key == 'j' {
         state.select(Some((selected + 1).min(len.saturating_sub(1))));
     }
+
+    if key == 'k' {
+        state.select(Some(selected.saturating_sub(1)));
+    }
 }
