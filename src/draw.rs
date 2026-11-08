@@ -2,13 +2,13 @@ use ratatui::{
     Frame,
     style::Style,
     text::{Line, Span},
-    widgets::Paragraph,
+    widgets::{List, ListState},
 };
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
     parse::Commit,
-    theme::{MAUVE, OVERLAY, SUBTEXT, TEXT},
+    theme::{MAUVE, OVERLAY, SUBTEXT, SURFACE0, TEXT},
 };
 
 const NODE: &str = "●";
@@ -84,7 +84,7 @@ fn commit_line(
     ])
 }
 
-pub fn render(frame: &mut Frame, commits: &[Commit]) {
+pub fn render(frame: &mut Frame, commits: &[Commit], state: &mut ListState) {
     let date_width = column_width(commits, |commit| &commit.date);
     let author_width = column_width(commits, |commit| &commit.author);
     let fixed_width = 1 + HASH_WIDTH + date_width + author_width + SEPARATORS_WIDTH;
@@ -95,7 +95,9 @@ pub fn render(frame: &mut Frame, commits: &[Commit]) {
         .map(|commit| commit_line(commit, date_width, author_width, message_width))
         .collect();
 
-    frame.render_widget(Paragraph::new(lines), frame.area());
+    let list = List::new(lines).highlight_style(Style::new().bg(SURFACE0));
+
+    frame.render_stateful_widget(list, frame.area(), state);
 }
 
 #[cfg(test)]

@@ -1,6 +1,8 @@
 use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, style::Color};
 
-use crate::{draw::render, parse::parse};
+use ratatui::widgets::ListState;
+
+use crate::{draw::render, nav, parse::parse};
 
 const SEP: &str = "\x1f";
 
@@ -9,9 +11,17 @@ fn line(hash: &str, parents: &str, refs: &str, date: &str, author: &str, subject
 }
 
 fn draw(log: &str, width: u16, height: u16) -> Buffer {
+    draw_after(log, width, height, "")
+}
+
+fn draw_after(log: &str, width: u16, height: u16, keys: &str) -> Buffer {
     let commits = parse(log);
+    let mut state = ListState::default().with_selected(Some(0));
+    for key in keys.chars() {
+        nav::press(&mut state, key, commits.len());
+    }
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
-    terminal.draw(|frame| render(frame, &commits)).unwrap();
+    terminal.draw(|frame| render(frame, &commits, &mut state)).unwrap();
 
     terminal.backend().buffer().clone()
 }
@@ -94,10 +104,57 @@ fn truncates_the_message_first_in_a_narrow_terminal() {
 
 #[test]
 fn colours_hash_in_overlay_and_text_in_text_and_subtext() {
-    let buffer = draw(&two_commits(), 60, 1);
+    let buffer = draw(&two_commits(), 60, 2);
 
     assert_eq!(buffer[(2, 0)].fg, Color::Rgb(0x6c, 0x70, 0x86));
     assert_eq!(buffer[(10, 0)].fg, Color::Rgb(0xa6, 0xad, 0xc8));
     assert_eq!(buffer[(34, 0)].fg, Color::Rgb(0xcd, 0xd6, 0xf4));
-    assert_eq!(buffer[(34, 0)].bg, Color::Reset);
+    assert_eq!(buffer[(34, 1)].bg, Color::Reset);
+}
+
+const SURFACE0: Color = Color::Rgb(0x31, 0x32, 0x44);
+
+fn five_commits() -> String {
+    ["e", "d", "c", "b", "a"]
+        .map(|name| line(&name.repeat(8), "", "", "1 day ago", "Ann", &format!("commit {name}")))
+        .join("\n")
+}
+
+fn highlighted_rows(buffer: &Buffer) -> Vec<u16> {
+    (0..buffer.area.height)
+        .filter(|&y| buffer[(0, y)].bg == SURFACE0)
+        .collect()
+}
+
+#[test]
+fn highlights_the_first_row_in_surface0_at_start() {
+    let buffer = draw(&five_commits(), 40, 5);
+
+    assert_eq!(highlighted_rows(&buffer), vec![0]);
+    assert_eq!(buffer[(39, 0)].bg, SURFACE0);
+    assert_eq!(buffer[(2, 0)].fg, Color::Rgb(0x6c, 0x70, 0x86));
+}
+
+#[test]
+fn j_moves_the_highlight_down_one_commit() {
+    let buffer = draw_after(&five_commits(), 40, 5, "jj");
+
+    assert_eq!(highlighted_rows(&buffer), vec![2]);
+}
+
+#[test]
+fn j_scrolls_the_view_to_keep_the_selection_visible() {
+    let buffer = draw_after(&five_commits(), 40, 3, "jjjj");
+
+    assert!(row_text(&buffer, 0).contains("commit c"));
+    assert!(row_text(&buffer, 2).contains("commit a"));
+    assert_eq!(highlighted_rows(&buffer), vec![2]);
+}
+
+#[test]
+fn j_on_the_last_commit_does_nothing() {
+    let at_last = draw_after(&five_commits(), 40, 3, "jjjj");
+    let past_last = draw_after(&five_commits(), 40, 3, "jjjjjjj");
+
+    assert_eq!(at_last, past_last);
 }
