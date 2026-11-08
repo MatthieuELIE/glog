@@ -141,14 +141,6 @@ fn draw_cells(
     let columns = before.len().max(after_len);
     let mut cells = vec![BLANK_CELL; (2 * columns).saturating_sub(1)];
 
-    for (column, lane) in before.iter().enumerate() {
-        if let Some(lane) = lane
-            && !joining.contains(&column)
-        {
-            cells[2 * column] = Cell { symbol: '│', color: lane.color };
-        }
-    }
-
     let ends = opened
         .iter()
         .map(|&(column, color)| (column, color, '╭', '╮'))
@@ -159,6 +151,13 @@ fn draw_cells(
         let (from, to) = (node_column.min(column), node_column.max(column));
         for cell in &mut cells[2 * from + 1..2 * to] {
             *cell = Cell { symbol: '─', color };
+        }
+    }
+    for (column, lane) in before.iter().enumerate() {
+        if let Some(lane) = lane
+            && !joining.contains(&column)
+        {
+            cells[2 * column] = Cell { symbol: '│', color: lane.color };
         }
     }
     for &(column, color, left, right) in &ends {

@@ -430,3 +430,20 @@ fn truncates_the_message_after_the_badges_in_a_narrow_terminal() {
 
     assert_eq!(row_text(&buffer, 0), "● aaaaaaa 1 day ago Ann [main] subj…");
 }
+
+#[test]
+fn a_lane_passing_under_a_junction_keeps_its_vertical_line() {
+    let log = [
+        line("xxxxxxx", "aaaaaaa", "", "1 day ago", "Ann", "x"),
+        line("yyyyyyy", "qqqqqqq", "", "1 day ago", "Ann", "y"),
+        line("sssssss", "aaaaaaa", "", "1 day ago", "Ann", "s"),
+        line("aaaaaaa", "", "", "1 day ago", "Ann", "a"),
+        line("qqqqqqq", "", "", "1 day ago", "Ann", "q"),
+    ]
+    .join("\n");
+
+    let buffer = draw(&log, 40, 5);
+
+    assert_eq!(graph(&buffer, 3, 5), "●─│─╯");
+    assert_eq!(buffer[(2, 3)].fg, BLUE);
+}
