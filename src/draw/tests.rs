@@ -181,6 +181,15 @@ fn k_on_the_first_commit_does_nothing() {
     assert_eq!(at_first, before_first);
 }
 
+const MAUVE: Color = Color::Rgb(0xcb, 0xa6, 0xf7);
+const BLUE: Color = Color::Rgb(0x89, 0xb4, 0xfa);
+const GREEN: Color = Color::Rgb(0xa6, 0xe3, 0xa1);
+const PEACH: Color = Color::Rgb(0xfa, 0xb3, 0x87);
+const PINK: Color = Color::Rgb(0xf5, 0xc2, 0xe7);
+const TEAL: Color = Color::Rgb(0x94, 0xe2, 0xd5);
+const YELLOW: Color = Color::Rgb(0xf9, 0xe2, 0xaf);
+const RED: Color = Color::Rgb(0xf3, 0x8b, 0xa8);
+
 fn graph(buffer: &Buffer, y: u16, width: u16) -> String {
     (0..width).map(|x| buffer[(x, y)].symbol().to_string()).collect()
 }
@@ -244,6 +253,53 @@ fn opens_a_lane_for_each_parent_after_the_first_of_an_octopus_merge() {
 
     assert_eq!(graph(&buffer, 0, 5), "●─╮─╮");
     assert_eq!(graph(&buffer, 1, 5), "● │ │");
+}
+
+fn tips(count: usize) -> String {
+    (0..count)
+        .map(|n| line(&format!("tip{n:04}"), "", "", "1 day ago", "Ann", "t"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn open_lanes_log(count: usize) -> String {
+    let parents: Vec<String> = (0..count).map(|n| format!("par{n:04}")).collect();
+
+    line("mmmmmmm", &parents.join(" "), "", "1 day ago", "Ann", "m")
+}
+
+#[test]
+fn colours_each_lane_in_the_mocha_cycle() {
+    let buffer = draw(&open_lanes_log(8), 40, 1);
+    let colours: Vec<Color> = (0..8).map(|column| buffer[(2 * column, 0)].fg).collect();
+
+    assert_eq!(colours, [MAUVE, BLUE, GREEN, PEACH, PINK, TEAL, YELLOW, RED]);
+}
+
+#[test]
+fn restarts_the_cycle_after_the_ninth_lane() {
+    let buffer = draw(&open_lanes_log(9), 40, 1);
+
+    assert_eq!(buffer[(16, 0)].fg, MAUVE);
+}
+
+#[test]
+fn a_lane_keeps_one_colour_along_its_whole_length() {
+    let buffer = draw(&merge_log(), 40, 4);
+
+    assert_eq!(buffer[(2, 0)].fg, BLUE);
+    assert_eq!(buffer[(2, 1)].fg, BLUE);
+    assert_eq!(buffer[(2, 2)].fg, BLUE);
+    assert_eq!(buffer[(0, 1)].fg, MAUVE);
+}
+
+#[test]
+fn a_lane_reusing_a_freed_column_takes_the_next_colour_of_the_cycle() {
+    let log = format!("{}\n{}", merge_log(), tips(1));
+
+    let buffer = draw(&log, 40, 5);
+
+    assert_eq!(buffer[(0, 4)].fg, GREEN);
 }
 
 #[test]
