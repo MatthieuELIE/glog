@@ -9,7 +9,7 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 use crate::{
     lanes::{GraphRow, place},
     parse::Commit,
-    theme::{MAUVE, OVERLAY, SUBTEXT, SURFACE0, TEXT},
+    theme::{LANE_COLORS, OVERLAY, SUBTEXT, SURFACE0, TEXT},
 };
 
 const HASH_WIDTH: usize = 7;
@@ -56,7 +56,7 @@ fn truncate(text: &str, width: usize) -> String {
 fn graph_spans(row: &GraphRow) -> Vec<Span<'static>> {
     row.cells
         .iter()
-        .map(|cell| Span::styled(cell.symbol.to_string(), Style::new().fg(MAUVE)))
+        .map(|cell| Span::styled(cell.symbol.to_string(), Style::new().fg(LANE_COLORS[cell.color % LANE_COLORS.len()])))
         .collect()
 }
 

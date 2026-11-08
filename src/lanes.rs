@@ -13,7 +13,6 @@ pub struct Cell {
 #[derive(Debug)]
 pub struct GraphRow {
     pub cells: Vec<Cell>,
-    pub color: usize,
 }
 
 #[derive(Clone)]
@@ -125,7 +124,7 @@ fn place_row(columns: &Columns, next_color: usize, commit: &Commit) -> (GraphRow
         next.pop();
     }
 
-    (GraphRow { cells, color }, next, next_color)
+    (GraphRow { cells }, next, next_color)
 }
 
 fn draw_cells(
