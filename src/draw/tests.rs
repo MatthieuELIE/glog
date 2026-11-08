@@ -111,6 +111,14 @@ fn colours_hash_in_overlay_and_text_in_text_and_subtext() {
     assert_eq!(buffer[(34, 1)].bg, Color::Reset);
 }
 
+#[test]
+fn colours_author_in_lavender_apart_from_the_date() {
+    let buffer = draw(&two_commits(), 60, 2);
+
+    assert_eq!(buffer[(22, 0)].fg, Color::Rgb(0xb4, 0xbe, 0xfe));
+    assert_eq!(buffer[(22, 1)].fg, Color::Rgb(0xb4, 0xbe, 0xfe));
+}
+
 const SURFACE0: Color = Color::Rgb(0x31, 0x32, 0x44);
 
 fn five_commits() -> String {
