@@ -117,7 +117,15 @@ fn place_row(columns: &Columns, next_color: usize, commit: &Commit) -> (GraphRow
         next_color += 1;
     }
 
-    let cells = draw_cells(columns, next.len(), node_column, commit, color, &joining, &opened, &joined);
+    let cells = draw_cells(
+        columns,
+        next.len(),
+        Node { column: node_column, color },
+        commit,
+        &joining,
+        &opened,
+        &joined,
+    );
 
     while next.last().is_some_and(Option::is_none) {
         next.pop();
@@ -126,16 +134,21 @@ fn place_row(columns: &Columns, next_color: usize, commit: &Commit) -> (GraphRow
     (GraphRow { cells, node_color: color }, next, next_color)
 }
 
+struct Node {
+    column: usize,
+    color: usize,
+}
+
 fn draw_cells(
     before: &Columns,
     after_len: usize,
-    node_column: usize,
+    node: Node,
     commit: &Commit,
-    color: usize,
     joining: &[usize],
     opened: &[(usize, usize)],
     joined: &[(usize, usize)],
 ) -> Vec<Cell> {
+    let Node { column: node_column, color } = node;
     let columns = before.len().max(after_len);
     let mut cells = vec![BLANK_CELL; (2 * columns).saturating_sub(1)];
 
