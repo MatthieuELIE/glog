@@ -39,6 +39,12 @@ fn main() -> ExitCode {
     };
 
     let commits = parse(&log);
+    if commits.is_empty() {
+        eprintln!("glog: no commits yet");
+        return ExitCode::FAILURE;
+    }
+
+    let commits = parse(&log);
     match ratatui::run(|terminal| event_loop(terminal, &commits)) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
