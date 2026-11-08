@@ -465,3 +465,15 @@ fn a_merge_parent_takes_the_column_freed_by_a_lane_ending_on_the_same_row() {
     assert_eq!(buffer[(2, 2)].fg, GREEN);
     assert_eq!(graph(&buffer, 3, 3), "● │");
 }
+
+#[test]
+fn orders_badges_head_then_local_then_remote_then_tags_keeping_git_order_within_a_kind() {
+    let log = badge_log("tag: refs/tags/v1, refs/remotes/origin/feature/a, refs/heads/zeta, refs/heads/feature/a, HEAD");
+
+    let buffer = draw(&log, 100, 1);
+
+    assert_eq!(
+        row_text(&buffer, 0).trim_end(),
+        "○ aaaaaaa 1 day ago Ann [HEAD] [zeta] [feature/a] [origin/feature/a] [◆ v1] subject"
+    );
+}

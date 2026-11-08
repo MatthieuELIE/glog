@@ -2,7 +2,7 @@ const FIELD_SEPARATOR: char = '\x1f';
 
 const SHORT_HASH_LENGTH: usize = 7;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum RefKind {
     Head,
     Local,
@@ -66,7 +66,7 @@ fn parse_ref(decoration: &str) -> Vec<Ref> {
 
 fn parse_refs(refs: &str) -> Vec<Ref> {
     let mut parsed: Vec<Ref> = refs.split(", ").flat_map(parse_ref).collect();
-    parsed.sort_by_key(|reference| reference.kind != RefKind::Head);
+    parsed.sort_by_key(|reference| reference.kind);
 
     parsed
 }
