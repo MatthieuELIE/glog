@@ -26,9 +26,7 @@ fn draw_after(log: &str, width: u16, height: u16, keys: &str) -> Buffer {
 }
 
 fn row_text(buffer: &Buffer, y: u16) -> String {
-    (0..buffer.area.width)
-        .map(|x| buffer[(x, y)].symbol().to_string())
-        .collect()
+    (0..buffer.area.width).map(|x| buffer[(x, y)].symbol().to_string()).collect()
 }
 
 #[test]
@@ -128,9 +126,7 @@ fn five_commits() -> String {
 }
 
 fn highlighted_rows(buffer: &Buffer) -> Vec<u16> {
-    (0..buffer.area.height)
-        .filter(|&y| buffer[(0, y)].bg == SURFACE0)
-        .collect()
+    (0..buffer.area.height).filter(|&y| buffer[(0, y)].bg == SURFACE0).collect()
 }
 
 #[test]

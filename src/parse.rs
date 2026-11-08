@@ -34,7 +34,10 @@ fn short_hash(hash: &str) -> String {
 }
 
 fn named(kind: RefKind, name: &str) -> Ref {
-    Ref { kind, name: name.to_string() }
+    Ref {
+        kind,
+        name: name.to_string(),
+    }
 }
 
 fn local(name: &str) -> Ref {
