@@ -488,3 +488,33 @@ fn colours_each_junction_segment_like_the_corner_that_ends_it() {
     let colours: Vec<Color> = (1..5).map(|x| buffer[(x, 0)].fg).collect();
     assert_eq!(colours, [BLUE, BLUE, GREEN, GREEN]);
 }
+
+#[test]
+fn draws_a_junction_across_four_lanes_without_a_gap() {
+    let log = [
+        line("mmmmmmm", "bbbbbbb sssssss ttttttt uuuuuuu", "", "1 day ago", "Ann", "m"),
+        line("bbbbbbb", "", "", "1 day ago", "Ann", "b"),
+    ]
+    .join("\n");
+
+    let buffer = draw(&log, 40, 2);
+
+    assert_eq!(graph(&buffer, 0, 7), "●─╮─╮─╮");
+}
+
+#[test]
+fn opens_a_lane_left_of_the_node_with_an_opening_corner_facing_right() {
+    let log = [
+        line("xxxxxxx", "ppppppp", "", "1 day ago", "Ann", "x"),
+        line("yyyyyyy", "mmmmmmm", "", "1 day ago", "Ann", "y"),
+        line("ppppppp", "", "", "1 day ago", "Ann", "p"),
+        line("mmmmmmm", "bbbbbbb sssssss", "", "1 day ago", "Ann", "m"),
+        line("bbbbbbb", "", "", "1 day ago", "Ann", "b"),
+        line("sssssss", "", "", "1 day ago", "Ann", "s"),
+    ]
+    .join("\n");
+
+    let buffer = draw(&log, 40, 6);
+
+    assert_eq!(graph(&buffer, 3, 3), "╭─●");
+}
