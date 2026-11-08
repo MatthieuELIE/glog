@@ -1,6 +1,4 @@
-use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, style::Color};
-
-use ratatui::widgets::ListState;
+use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, style::Color, widgets::ListState};
 
 use crate::{draw::render, nav, parse::parse};
 
@@ -17,11 +15,12 @@ fn draw(log: &str, width: u16, height: u16) -> Buffer {
 fn draw_after(log: &str, width: u16, height: u16, keys: &str) -> Buffer {
     let commits = parse(log);
     let mut state = ListState::default().with_selected(Some(0));
-    for key in keys.chars() {
-        nav::press(&mut state, key, commits.len());
-    }
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
     terminal.draw(|frame| render(frame, &commits, &mut state)).unwrap();
+    for key in keys.chars() {
+        nav::press(&mut state, key, commits.len());
+        terminal.draw(|frame| render(frame, &commits, &mut state)).unwrap();
+    }
 
     terminal.backend().buffer().clone()
 }
@@ -157,4 +156,27 @@ fn j_on_the_last_commit_does_nothing() {
     let past_last = draw_after(&five_commits(), 40, 3, "jjjjjjj");
 
     assert_eq!(at_last, past_last);
+}
+
+#[test]
+fn k_moves_the_highlight_up_one_commit() {
+    let buffer = draw_after(&five_commits(), 40, 5, "jjjk");
+
+    assert_eq!(highlighted_rows(&buffer), vec![2]);
+}
+
+#[test]
+fn k_scrolls_the_view_back_up_to_keep_the_selection_visible() {
+    let buffer = draw_after(&five_commits(), 40, 3, "jjjjkkk");
+
+    assert!(row_text(&buffer, 0).contains("commit d"));
+    assert_eq!(highlighted_rows(&buffer), vec![0]);
+}
+
+#[test]
+fn k_on_the_first_commit_does_nothing() {
+    let at_first = draw_after(&five_commits(), 40, 3, "");
+    let before_first = draw_after(&five_commits(), 40, 3, "kk");
+
+    assert_eq!(at_first, before_first);
 }
