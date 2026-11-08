@@ -19,7 +19,10 @@ fn reads_commits_of_every_ref_and_finds_head_in_real_refs() {
     let commits = parse(&read_log(dir.path()).unwrap());
 
     assert_eq!(commits.len(), 2);
-    let head: Vec<_> = commits.iter().filter(|commit| commit.is_head).collect();
+    let head: Vec<_> = commits
+        .iter()
+        .filter(|commit| commit.refs.iter().any(|r| r.kind == RefKind::Head))
+        .collect();
     assert_eq!(head.len(), 1);
     assert_eq!(head[0].subject, "on main");
 }
