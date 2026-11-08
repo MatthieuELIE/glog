@@ -447,3 +447,21 @@ fn a_lane_passing_under_a_junction_keeps_its_vertical_line() {
     assert_eq!(graph(&buffer, 3, 5), "●─│─╯");
     assert_eq!(buffer[(2, 3)].fg, BLUE);
 }
+
+#[test]
+fn a_merge_parent_takes_the_column_freed_by_a_lane_ending_on_the_same_row() {
+    let log = [
+        line("xxxxxxx", "mmmmmmm", "", "1 day ago", "Ann", "x"),
+        line("sssssss", "mmmmmmm", "", "1 day ago", "Ann", "s"),
+        line("mmmmmmm", "bbbbbbb ppppppp", "", "1 day ago", "Ann", "m"),
+        line("bbbbbbb", "", "", "1 day ago", "Ann", "b"),
+        line("ppppppp", "", "", "1 day ago", "Ann", "p"),
+    ]
+    .join("\n");
+
+    let buffer = draw(&log, 40, 5);
+
+    assert!(row_text(&buffer, 2).starts_with("●─┤ mmmmmmm"));
+    assert_eq!(buffer[(2, 2)].fg, GREEN);
+    assert_eq!(graph(&buffer, 3, 3), "● │");
+}

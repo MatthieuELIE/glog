@@ -103,6 +103,15 @@ fn place_row(columns: &Columns, next_color: usize, commit: &Commit) -> (GraphRow
         .first()
         .map(|parent| Lane { expects: parent.clone(), color });
 
+    let joined: Vec<(usize, usize)> = joining
+        .iter()
+        .skip(1)
+        .map(|&column| (column, lane_color(columns, column)))
+        .collect();
+    for &(column, _) in &joined {
+        next[column] = None;
+    }
+
     let mut opened = Vec::new();
     for parent in commit.parents.iter().skip(1) {
         let lane = Lane { expects: parent.clone(), color: next_color };
@@ -110,17 +119,8 @@ fn place_row(columns: &Columns, next_color: usize, commit: &Commit) -> (GraphRow
         next_color += 1;
     }
 
-    let joined: Vec<(usize, usize)> = joining
-        .iter()
-        .skip(1)
-        .map(|&column| (column, lane_color(columns, column)))
-        .collect();
-
     let cells = draw_cells(columns, next.len(), node_column, commit, color, &joining, &opened, &joined);
 
-    for &(column, _) in &joined {
-        next[column] = None;
-    }
     while next.last().is_some_and(Option::is_none) {
         next.pop();
     }
@@ -141,10 +141,16 @@ fn draw_cells(
     let columns = before.len().max(after_len);
     let mut cells = vec![BLANK_CELL; (2 * columns).saturating_sub(1)];
 
-    let ends = opened
+    let ends = joined
         .iter()
-        .map(|&(column, color)| (column, color, '╭', '╮'))
-        .chain(joined.iter().map(|&(column, color)| (column, color, '╰', '╯')));
+        .map(|&(column, color)| (column, color, '╰', '╯'))
+        .chain(opened.iter().map(|&(column, color)| {
+            if joined.iter().any(|&(joined_column, _)| joined_column == column) {
+                return (column, color, '├', '┤');
+            }
+
+            (column, color, '╭', '╮')
+        }));
     let ends: Vec<_> = ends.collect();
 
     for &(column, color, _, _) in &ends {
