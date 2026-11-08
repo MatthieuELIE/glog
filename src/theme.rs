@@ -5,6 +5,7 @@ pub const TEXT: Color = Color::Rgb(0xcd, 0xd6, 0xf4);
 pub const SUBTEXT: Color = Color::Rgb(0xa6, 0xad, 0xc8);
 pub const OVERLAY: Color = Color::Rgb(0x6c, 0x70, 0x86);
 pub const SURFACE0: Color = Color::Rgb(0x31, 0x32, 0x44);
+pub const YELLOW: Color = Color::Rgb(0xf9, 0xe2, 0xaf);
 
 pub const LANE_COLORS: [Color; 8] = [
     MAUVE,
@@ -13,6 +14,6 @@ pub const LANE_COLORS: [Color; 8] = [
     Color::Rgb(0xfa, 0xb3, 0x87),
     Color::Rgb(0xf5, 0xc2, 0xe7),
     Color::Rgb(0x94, 0xe2, 0xd5),
-    Color::Rgb(0xf9, 0xe2, 0xaf),
+    YELLOW,
     Color::Rgb(0xf3, 0x8b, 0xa8),
 ];

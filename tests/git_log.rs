@@ -1,7 +1,10 @@
 mod common;
 
 use common::TempDir;
-use glog::{parse::parse, read::read_log};
+use glog::{
+    parse::{RefKind, parse},
+    read::read_log,
+};
 
 #[test]
 fn reads_commits_of_every_ref_and_finds_head_in_real_refs() {
@@ -19,6 +22,49 @@ fn reads_commits_of_every_ref_and_finds_head_in_real_refs() {
     let head: Vec<_> = commits.iter().filter(|commit| commit.is_head).collect();
     assert_eq!(head.len(), 1);
     assert_eq!(head[0].subject, "on main");
+}
+
+fn badges(commit: &glog::parse::Commit) -> Vec<(RefKind, &str)> {
+    commit.refs.iter().map(|r| (r.kind, r.name.as_str())).collect()
+}
+
+#[test]
+fn reads_local_branches_remote_branches_tags_and_head_from_real_refs() {
+    let dir = TempDir::new();
+    dir.git(&["init", "-q", "-b", "main"]);
+    dir.git(&["commit", "-q", "--allow-empty", "-m", "first"]);
+    dir.git(&["tag", "v1"]);
+    dir.git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    dir.git(&["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main"]);
+    dir.git(&["branch", "feature/x"]);
+
+    let commits = parse(&read_log(dir.path()).unwrap());
+    let mut found = badges(&commits[0]);
+
+    assert_eq!(found[0], (RefKind::Head, "HEAD"));
+    found.sort_by_key(|(_, name)| *name);
+    assert_eq!(
+        found,
+        [
+            (RefKind::Head, "HEAD"),
+            (RefKind::Local, "feature/x"),
+            (RefKind::Local, "main"),
+            (RefKind::Remote, "origin/main"),
+            (RefKind::Tag, "v1"),
+        ]
+    );
+}
+
+#[test]
+fn reads_a_detached_head_as_a_head_badge_alone() {
+    let dir = TempDir::new();
+    dir.git(&["init", "-q", "-b", "main"]);
+    dir.git(&["commit", "-q", "--allow-empty", "-m", "first"]);
+    dir.git(&["checkout", "-q", "--detach"]);
+
+    let commits = parse(&read_log(dir.path()).unwrap());
+
+    assert_eq!(badges(&commits[0]), [(RefKind::Head, "HEAD"), (RefKind::Local, "main")]);
 }
 
 #[test]
