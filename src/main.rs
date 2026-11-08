@@ -8,7 +8,7 @@ use glog::{
 };
 use ratatui::{
     DefaultTerminal,
-    crossterm::event::{self, Event, KeyCode},
+    crossterm::event::{self, Event, KeyCode, KeyModifiers},
     widgets::ListState,
 };
 
@@ -21,7 +21,7 @@ fn event_loop(terminal: &mut DefaultTerminal, commits: &[Commit]) -> io::Result<
         if let Event::Key(key) = event::read()?
             && let KeyCode::Char(character) = key.code
         {
-            if character == 'q' {
+            if character == 'q' || (character == 'c' && key.modifiers.contains(KeyModifiers::CONTROL)) {
                 return Ok(());
             }
             nav::press(&mut state, character, commits.len());
