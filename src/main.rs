@@ -44,7 +44,6 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
 
-    let commits = parse(&log);
     match ratatui::run(|terminal| event_loop(terminal, &commits)) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
