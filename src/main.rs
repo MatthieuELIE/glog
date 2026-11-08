@@ -2,22 +2,29 @@ use std::{io, path::Path, process::ExitCode};
 
 use glog::{
     draw::render,
+    nav,
     parse::{Commit, parse},
     read::read_log,
 };
 use ratatui::{
     DefaultTerminal,
     crossterm::event::{self, Event, KeyCode},
+    widgets::ListState,
 };
 
 fn event_loop(terminal: &mut DefaultTerminal, commits: &[Commit]) -> io::Result<()> {
+    let mut state = ListState::default().with_selected(Some(0));
+
     loop {
-        terminal.draw(|frame| render(frame, commits))?;
+        terminal.draw(|frame| render(frame, commits, &mut state))?;
 
         if let Event::Key(key) = event::read()?
-            && key.code == KeyCode::Char('q')
+            && let KeyCode::Char(character) = key.code
         {
-            return Ok(());
+            if character == 'q' {
+                return Ok(());
+            }
+            nav::press(&mut state, character, commits.len());
         }
     }
 }
