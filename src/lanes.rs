@@ -1,4 +1,4 @@
-use crate::parse::Commit;
+use crate::parse::{Commit, RefKind};
 
 const NODE: char = '●';
 const HEAD_NODE: char = '○';
@@ -171,7 +171,7 @@ fn draw_cells(
         cells[2 * column] = Cell { symbol, color };
     }
 
-    let symbol = if commit.is_head { HEAD_NODE } else { NODE };
+    let symbol = if commit.refs.iter().any(|reference| reference.kind == RefKind::Head) { HEAD_NODE } else { NODE };
     cells[2 * node_column] = Cell { symbol, color };
 
     cells
