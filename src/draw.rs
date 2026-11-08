@@ -9,7 +9,7 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 use crate::{
     lanes::{GraphRow, place},
     parse::{Commit, Ref, RefKind},
-    theme::{LANE_COLORS, OVERLAY, SUBTEXT, SURFACE0, TEXT, YELLOW},
+    theme::{LANE_COLORS, LAVENDER, OVERLAY, SUBTEXT, SURFACE0, TEXT, YELLOW},
 };
 
 const HASH_WIDTH: usize = 7;
@@ -95,7 +95,7 @@ fn commit_line(
         Span::raw(" "),
         Span::styled(pad(&commit.date, date_width), Style::new().fg(SUBTEXT)),
         Span::raw(" "),
-        Span::styled(pad(&commit.author, author_width), Style::new().fg(SUBTEXT)),
+        Span::styled(pad(&commit.author, author_width), Style::new().fg(LAVENDER)),
         Span::raw(" "),
     ]);
     let badges = badge_spans(commit, row);
