@@ -180,3 +180,98 @@ fn k_on_the_first_commit_does_nothing() {
 
     assert_eq!(at_first, before_first);
 }
+
+fn graph(buffer: &Buffer, y: u16, width: u16) -> String {
+    (0..width).map(|x| buffer[(x, y)].symbol().to_string()).collect()
+}
+
+fn branch_log() -> String {
+    [
+        line("ccccccc", "bbbbbbb", "", "1 day ago", "Ann", "c"),
+        line("bbbbbbb", "aaaaaaa", "", "1 day ago", "Ann", "b"),
+        line("sssssss", "aaaaaaa", "", "1 day ago", "Ann", "s"),
+        line("aaaaaaa", "", "", "1 day ago", "Ann", "a"),
+    ]
+    .join("\n")
+}
+
+#[test]
+fn keeps_the_first_parent_chain_in_the_same_lane() {
+    let buffer = draw(&branch_log(), 40, 4);
+
+    assert_eq!(graph(&buffer, 0, 3), "●  ");
+    assert_eq!(graph(&buffer, 1, 3), "●  ");
+    assert_eq!(graph(&buffer, 3, 1), "●");
+}
+
+#[test]
+fn opens_a_lane_for_a_branch_and_joins_the_lane_of_its_parent() {
+    let buffer = draw(&branch_log(), 40, 4);
+
+    assert_eq!(graph(&buffer, 2, 3), "│ ●");
+    assert_eq!(graph(&buffer, 3, 3), "●─╯");
+}
+
+fn merge_log() -> String {
+    [
+        line("mmmmmmm", "bbbbbbb sssssss", "", "1 day ago", "Ann", "m"),
+        line("bbbbbbb", "aaaaaaa", "", "1 day ago", "Ann", "b"),
+        line("sssssss", "aaaaaaa", "", "1 day ago", "Ann", "s"),
+        line("aaaaaaa", "", "", "1 day ago", "Ann", "a"),
+    ]
+    .join("\n")
+}
+
+#[test]
+fn opens_a_lane_for_the_second_parent_of_a_merge() {
+    let buffer = draw(&merge_log(), 40, 4);
+
+    assert_eq!(graph(&buffer, 0, 3), "●─╮");
+    assert_eq!(graph(&buffer, 1, 3), "● │");
+    assert_eq!(graph(&buffer, 2, 3), "│ ●");
+    assert_eq!(graph(&buffer, 3, 3), "●─╯");
+}
+
+#[test]
+fn opens_a_lane_for_each_parent_after_the_first_of_an_octopus_merge() {
+    let log = [
+        line("mmmmmmm", "bbbbbbb sssssss ttttttt", "", "1 day ago", "Ann", "m"),
+        line("bbbbbbb", "", "", "1 day ago", "Ann", "b"),
+    ]
+    .join("\n");
+
+    let buffer = draw(&log, 40, 2);
+
+    assert_eq!(graph(&buffer, 0, 5), "●─╮─╮");
+    assert_eq!(graph(&buffer, 1, 5), "● │ │");
+}
+
+#[test]
+fn links_commits_to_parents_given_as_full_hashes() {
+    let full = |short: &str| format!("{short}{}", "0".repeat(33));
+    let log = [
+        line(&full("1111111"), &full("2222222"), "", "1 day ago", "Ann", "tip"),
+        line(&full("2222222"), "", "", "1 day ago", "Ann", "root"),
+        line(&full("3333333"), "", "", "1 day ago", "Ann", "other"),
+    ]
+    .join("\n");
+
+    let buffer = draw(&log, 40, 3);
+
+    assert!(row_text(&buffer, 1).starts_with("● 2222222"));
+}
+
+#[test]
+fn a_new_lane_takes_the_leftmost_free_column() {
+    let log = [
+        line("xxxxxxx", "x000000", "", "1 day ago", "Ann", "x"),
+        line("yyyyyyy", "", "", "1 day ago", "Ann", "y"),
+        line("wwwwwww", "w000000", "", "1 day ago", "Ann", "w"),
+    ]
+    .join("\n");
+
+    let buffer = draw(&log, 40, 3);
+
+    assert_eq!(graph(&buffer, 1, 3), "│ ●");
+    assert_eq!(graph(&buffer, 2, 3), "│ ●");
+}

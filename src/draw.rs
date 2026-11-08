@@ -7,12 +7,11 @@ use ratatui::{
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
+    lanes::{GraphRow, place},
     parse::Commit,
     theme::{MAUVE, OVERLAY, SUBTEXT, SURFACE0, TEXT},
 };
 
-const NODE: &str = "●";
-const HEAD_NODE: &str = "○";
 const HASH_WIDTH: usize = 7;
 const SEPARATORS_WIDTH: usize = 4;
 const ELLIPSIS: char = '…';
@@ -23,14 +22,6 @@ fn column_width(commits: &[Commit], field: fn(&Commit) -> &str) -> usize {
         .map(|commit| field(commit).width())
         .max()
         .unwrap_or(0)
-}
-
-fn node(commit: &Commit) -> &'static str {
-    if commit.is_head {
-        return HEAD_NODE;
-    }
-
-    NODE
 }
 
 fn pad(text: &str, width: usize) -> String {
@@ -62,14 +53,22 @@ fn truncate(text: &str, width: usize) -> String {
     kept
 }
 
+fn graph_spans(row: &GraphRow) -> Vec<Span<'static>> {
+    row.cells
+        .iter()
+        .map(|cell| Span::styled(cell.symbol.to_string(), Style::new().fg(MAUVE)))
+        .collect()
+}
+
 fn commit_line(
     commit: &Commit,
+    row: &GraphRow,
     date_width: usize,
     author_width: usize,
     message_width: usize,
 ) -> Line<'static> {
-    Line::from(vec![
-        Span::styled(node(commit), Style::new().fg(MAUVE)),
+    let mut spans = graph_spans(row);
+    spans.extend([
         Span::raw(" "),
         Span::styled(commit.hash.clone(), Style::new().fg(OVERLAY)),
         Span::raw(" "),
@@ -81,18 +80,23 @@ fn commit_line(
             truncate(&commit.subject, message_width),
             Style::new().fg(TEXT),
         ),
-    ])
+    ]);
+
+    Line::from(spans)
 }
 
 pub fn render(frame: &mut Frame, commits: &[Commit], state: &mut ListState) {
     let date_width = column_width(commits, |commit| &commit.date);
     let author_width = column_width(commits, |commit| &commit.author);
-    let fixed_width = 1 + HASH_WIDTH + date_width + author_width + SEPARATORS_WIDTH;
+    let rows = place(commits);
+    let graph_width = rows.first().map_or(0, |row| row.cells.len());
+    let fixed_width = graph_width + HASH_WIDTH + date_width + author_width + SEPARATORS_WIDTH;
     let message_width = usize::from(frame.area().width).saturating_sub(fixed_width);
 
     let lines: Vec<Line> = commits
         .iter()
-        .map(|commit| commit_line(commit, date_width, author_width, message_width))
+        .zip(&rows)
+        .map(|(commit, row)| commit_line(commit, row, date_width, author_width, message_width))
         .collect();
 
     let list = List::new(lines).highlight_style(Style::new().bg(SURFACE0));
