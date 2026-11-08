@@ -1,3 +1,5 @@
+use std::cmp::Reverse;
+
 use crate::parse::{Commit, RefKind};
 
 const NODE: char = '●';
@@ -151,7 +153,8 @@ fn draw_cells(
 
             (column, color, '╭', '╮')
         }));
-    let ends: Vec<_> = ends.collect();
+    let mut ends: Vec<_> = ends.collect();
+    ends.sort_by_key(|&(column, ..)| Reverse(column.abs_diff(node_column)));
 
     for &(column, color, _, _) in &ends {
         let (from, to) = (node_column.min(column), node_column.max(column));
