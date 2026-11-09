@@ -21,6 +21,8 @@ Run `glog` in a git repository. It reads the current folder and changes nothing.
 | -------- | -------------------------- |
 | `j`      | Move the selection down    |
 | `k`      | Move the selection up      |
+| `h`      | Scroll the graph left      |
+| `l`      | Scroll the graph right     |
 | `q`      | Quit                       |
 | `Ctrl+C` | Quit                       |
 
@@ -30,6 +32,7 @@ Run `glog` in a git repository. It reads the current folder and changes nothing.
 
 - `●` is a commit and `○` is HEAD, which also carries a bold `[HEAD]` badge.
 - Each lane, a line of history that branches off and merges back, has its own colour.
+- The graph takes at most a third of the terminal width. When lanes are hidden, a dimmed `…` on its left or right edge says on which side: `h` and `l` scroll the graph one lane at a time.
 - Badges name the refs on a commit: local branches in colour, remote branches dimmed, and tags with a yellow `◆`.
 
 ## Requirements

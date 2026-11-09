@@ -79,7 +79,9 @@ fn help_flags_print_usage_description_and_keys_on_stdout() {
             "A read-only, coloured git log graph for the terminal",
             "j  ",
             "k  ",
-            "q  ",
+            "h  ",
+            "l  ",
+            "q       Quit",
             "Ctrl+C",
         ] {
             assert!(stdout.contains(expected), "{flag}: {expected:?} in {stdout}");
