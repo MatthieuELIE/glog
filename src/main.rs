@@ -31,7 +31,11 @@ fn event_loop(terminal: &mut DefaultTerminal, commits: &[Commit]) -> io::Result<
 }
 
 #[derive(Parser)]
-#[command(version)]
+#[command(
+    version,
+    about = "A read-only, coloured git log graph for the terminal",
+    after_help = "Keys:\n  j       Move the selection down\n  k       Move the selection up\n  q       Quit\n  Ctrl+C  Quit"
+)]
 struct Cli {}
 
 fn main() -> ExitCode {
