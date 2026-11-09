@@ -25,3 +25,9 @@ Run `glog` in a git repository. It reads the current folder and changes nothing.
 | `Ctrl+C` | Quit                       |
 
 `glog --help` prints the same keys, and `glog --version` the installed version.
+
+## Reading the graph
+
+- `●` is a commit and `○` is HEAD, which also carries a bold `[HEAD]` badge.
+- Each lane, a line of history that branches off and merges back, has its own colour.
+- Badges name the refs on a commit: local branches in colour, remote branches dimmed, and tags with a yellow `◆`.
