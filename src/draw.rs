@@ -9,7 +9,7 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 use crate::{
     lanes::{GraphRow, place},
     parse::{Commit, Ref, RefKind},
-    theme::{LANE_COLORS, LAVENDER, OVERLAY, SUBTEXT, SURFACE0, TEXT, YELLOW},
+    theme::{LANE_COLORS, LAVENDER, OVERLAY, SUBTEXT, SURFACE1, TEXT, YELLOW},
 };
 
 const HASH_WIDTH: usize = 7;
@@ -120,7 +120,7 @@ pub fn render(frame: &mut Frame, commits: &[Commit], state: &mut ListState) {
         .map(|(commit, row)| commit_line(commit, row, date_width, author_width, message_width))
         .collect();
 
-    let list = List::new(lines).highlight_style(Style::new().bg(SURFACE0));
+    let list = List::new(lines).highlight_style(Style::new().bg(SURFACE1));
 
     frame.render_stateful_widget(list, frame.area(), state);
 }
