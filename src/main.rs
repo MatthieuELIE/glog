@@ -1,5 +1,6 @@
 use std::{io, path::Path, process::ExitCode};
 
+use clap::Parser;
 use glog::{
     draw::render,
     nav,
@@ -29,7 +30,13 @@ fn event_loop(terminal: &mut DefaultTerminal, commits: &[Commit]) -> io::Result<
     }
 }
 
+#[derive(Parser)]
+#[command(version)]
+struct Cli {}
+
 fn main() -> ExitCode {
+    Cli::parse();
+
     let log = match read_log(Path::new(".")) {
         Ok(log) => log,
         Err(message) => {
