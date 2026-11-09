@@ -12,3 +12,16 @@ cargo install --locked --git https://github.com/MatthieuELIE/glog --tag v0.1.0
 
 This puts `glog` in `~/.cargo/bin`. From a clone, run `cargo install --locked --path .` instead.
 It is developed on macOS and tested on Linux; it has not been tried on Windows.
+
+## Usage
+
+Run `glog` in a git repository. It reads the current folder and changes nothing.
+
+| Key      | Action                     |
+| -------- | -------------------------- |
+| `j`      | Move the selection down    |
+| `k`      | Move the selection up      |
+| `q`      | Quit                       |
+| `Ctrl+C` | Quit                       |
+
+`glog --help` prints the same keys, and `glog --version` the installed version.
