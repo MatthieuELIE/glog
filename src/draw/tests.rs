@@ -550,10 +550,10 @@ fn scrolled_graph(keys: &str, y: u16) -> String {
 
 #[test]
 fn l_shifts_the_graph_window_one_lane_to_the_right() {
-    assert_eq!(scrolled_graph("", 4), "│ │ │ ");
-    assert_eq!(scrolled_graph("l", 4), "│ │ │ ");
-    assert_eq!(scrolled_graph("ll", 4), "│ │ ● ");
-    assert_eq!(scrolled_graph("lll", 4), "│ ●   ");
+    assert_eq!(scrolled_graph("", 4), "│ │ │…");
+    assert_eq!(scrolled_graph("l", 4), "… │ │…");
+    assert_eq!(scrolled_graph("ll", 4), "… │ ●…");
+    assert_eq!(scrolled_graph("lll", 4), "… ●   ");
 }
 
 #[test]
@@ -571,10 +571,29 @@ fn h_at_the_left_edge_and_l_at_the_right_edge_do_nothing() {
 
 #[test]
 fn the_graph_window_is_shifted_by_the_same_amount_on_every_row() {
-    assert_eq!(scrolled_graph("lll", 3), "●     ");
-    assert_eq!(scrolled_graph("lll", 4), "│ ●   ");
-    assert_eq!(scrolled_graph("lll", 5), "│ │ ● ");
-    assert_eq!(scrolled_graph("lll", 6), "╯─╯─╯ ");
+    assert_eq!(scrolled_graph("lll", 3), "…     ");
+    assert_eq!(scrolled_graph("lll", 4), "… ●   ");
+    assert_eq!(scrolled_graph("lll", 5), "… │ ● ");
+    assert_eq!(scrolled_graph("lll", 6), "…─╯─╯ ");
+}
+
+#[test]
+fn replaces_the_edge_cell_with_an_ellipsis_on_the_side_of_hidden_lanes() {
+    let log = many_branches_log(6);
+
+    assert_eq!(graph(&draw_after(&log, 18, 7, ""), 4, 6), "│ │ │…");
+    assert_eq!(graph(&draw_after(&log, 18, 7, "l"), 4, 6), "… │ │…");
+    assert_eq!(graph(&draw_after(&log, 18, 7, "lll"), 4, 6), "… ●   ");
+}
+
+#[test]
+fn colours_the_ellipsis_in_overlay_on_every_row() {
+    let buffer = draw_after(&many_branches_log(6), 18, 7, "l");
+
+    for y in 0..7 {
+        assert_eq!((buffer[(0, y)].symbol(), buffer[(0, y)].fg), ("…", Color::Rgb(0x6c, 0x70, 0x86)));
+        assert_eq!((buffer[(5, y)].symbol(), buffer[(5, y)].fg), ("…", Color::Rgb(0x6c, 0x70, 0x86)));
+    }
 }
 
 #[test]

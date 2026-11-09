@@ -53,14 +53,30 @@ fn max_offset(graph_width: usize, window_width: usize) -> usize {
     graph_width.saturating_sub(window_width).div_ceil(CELLS_PER_LANE)
 }
 
+fn ellipsis_span() -> Span<'static> {
+    Span::styled(ELLIPSIS.to_string(), Style::new().fg(OVERLAY))
+}
+
 fn graph_spans(row: &GraphRow, offset: usize, window_width: usize) -> Vec<Span<'static>> {
+    let start = offset * CELLS_PER_LANE;
     let mut spans: Vec<Span<'static>> = row
         .cells
         .iter()
-        .skip(offset * CELLS_PER_LANE)
+        .skip(start)
         .take(window_width)
         .map(|cell| Span::styled(cell.symbol.to_string(), Style::new().fg(LANE_COLORS[cell.color % LANE_COLORS.len()])))
         .collect();
+    if offset > 0
+        && let Some(first) = spans.first_mut()
+    {
+        *first = ellipsis_span();
+    }
+
+    if start + window_width < row.cells.len()
+        && let Some(last) = spans.last_mut()
+    {
+        *last = ellipsis_span();
+    }
     spans.push(Span::raw(" ".repeat(window_width.saturating_sub(spans.len()))));
 
     spans
