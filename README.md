@@ -31,3 +31,9 @@ Run `glog` in a git repository. It reads the current folder and changes nothing.
 - `●` is a commit and `○` is HEAD, which also carries a bold `[HEAD]` badge.
 - Each lane, a line of history that branches off and merges back, has its own colour.
 - Badges name the refs on a commit: local branches in colour, remote branches dimmed, and tags with a yellow `◆`.
+
+## Requirements
+
+- `git` in the `PATH`
+- a terminal with truecolor support
+- Rust 1.89 or later to build it
