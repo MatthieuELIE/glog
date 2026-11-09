@@ -37,3 +37,7 @@ Run `glog` in a git repository. It reads the current folder and changes nothing.
 - `git` in the `PATH`
 - a terminal with truecolor support
 - Rust 1.89 or later to build it
+
+## License
+
+MIT, see [LICENSE](LICENSE).
