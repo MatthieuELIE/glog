@@ -57,3 +57,23 @@ fn version_flags_print_the_manifest_version_on_stdout() {
         );
     }
 }
+
+#[test]
+fn help_flags_print_usage_description_and_keys_on_stdout() {
+    for flag in ["--help", "-h"] {
+        let output = run_outside_a_repository(&[flag]);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        assert!(output.status.success(), "{flag}");
+        for expected in [
+            "Usage: glog",
+            "A read-only, coloured git log graph for the terminal",
+            "j  ",
+            "k  ",
+            "q  ",
+            "Ctrl+C",
+        ] {
+            assert!(stdout.contains(expected), "{flag}: {expected:?} in {stdout}");
+        }
+    }
+}
