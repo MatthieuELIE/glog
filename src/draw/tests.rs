@@ -274,7 +274,7 @@ fn open_lanes_log(count: usize) -> String {
 
 #[test]
 fn colours_each_lane_in_the_mocha_cycle() {
-    let buffer = draw(&open_lanes_log(8), 40, 1);
+    let buffer = draw(&open_lanes_log(8), 120, 1);
     let colours: Vec<Color> = (0..8).map(|column| buffer[(2 * column, 0)].fg).collect();
 
     assert_eq!(colours, [MAUVE, BLUE, GREEN, PEACH, PINK, TEAL, YELLOW, RED]);
@@ -282,7 +282,7 @@ fn colours_each_lane_in_the_mocha_cycle() {
 
 #[test]
 fn restarts_the_cycle_after_the_ninth_lane() {
-    let buffer = draw(&open_lanes_log(9), 40, 1);
+    let buffer = draw(&open_lanes_log(9), 120, 1);
 
     assert_eq!(buffer[(16, 0)].fg, MAUVE);
 }
@@ -517,4 +517,28 @@ fn opens_a_lane_left_of_the_node_with_an_opening_corner_facing_right() {
     let buffer = draw(&log, 40, 6);
 
     assert_eq!(graph(&buffer, 3, 3), "╭─●");
+}
+
+fn many_branches_log(count: usize) -> String {
+    let tips = (0..count).map(|n| line(&format!("{n:07x}"), "ba5e000", "", "1 day ago", "Ann", &format!("branch {n}")));
+
+    tips.chain([line("ba5e000", "", "", "1 day ago", "Ann", "base")])
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[test]
+fn limits_the_graph_column_to_a_third_of_the_terminal_so_the_text_stays_visible() {
+    let buffer = draw(&many_branches_log(60), 80, 61);
+
+    assert_eq!(row_text(&buffer, 59).chars().skip(27).take(7).collect::<String>(), "000003b");
+    assert!(row_text(&buffer, 59).contains("branch 59"));
+    assert!(row_text(&buffer, 60).contains("base"));
+}
+
+#[test]
+fn shows_a_graph_that_fits_in_a_third_of_the_terminal_in_full() {
+    let buffer = draw(&open_lanes_log(7), 39, 1);
+
+    assert_eq!(graph(&buffer, 0, 13), "●─╮─╮─╮─╮─╮─╮");
 }
