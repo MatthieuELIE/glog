@@ -1,6 +1,6 @@
 use ratatui::{crossterm::event::KeyModifiers, widgets::ListState};
 
-pub fn press(state: &mut ListState, key: char, len: usize) {
+pub fn press(state: &mut ListState, offset: &mut usize, key: char, len: usize) {
     let selected = state.selected().unwrap_or(0);
     if key == 'j' {
         state.select(Some((selected + 1).min(len.saturating_sub(1))));
@@ -8,6 +8,14 @@ pub fn press(state: &mut ListState, key: char, len: usize) {
 
     if key == 'k' {
         state.select(Some(selected.saturating_sub(1)));
+    }
+
+    if key == 'l' {
+        *offset += 1;
+    }
+
+    if key == 'h' {
+        *offset = offset.saturating_sub(1);
     }
 }
 

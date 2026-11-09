@@ -16,10 +16,11 @@ fn draw_after(log: &str, width: u16, height: u16, keys: &str) -> Buffer {
     let commits = parse(log);
     let mut state = ListState::default().with_selected(Some(0));
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
-    terminal.draw(|frame| render(frame, &commits, &mut state)).unwrap();
+    let mut offset = 0;
+    terminal.draw(|frame| render(frame, &commits, &mut state, &mut offset)).unwrap();
     for key in keys.chars() {
-        nav::press(&mut state, key, commits.len());
-        terminal.draw(|frame| render(frame, &commits, &mut state)).unwrap();
+        nav::press(&mut state, &mut offset, key, commits.len());
+        terminal.draw(|frame| render(frame, &commits, &mut state, &mut offset)).unwrap();
     }
 
     terminal.backend().buffer().clone()
@@ -541,4 +542,46 @@ fn shows_a_graph_that_fits_in_a_third_of_the_terminal_in_full() {
     let buffer = draw(&open_lanes_log(7), 39, 1);
 
     assert_eq!(graph(&buffer, 0, 13), "●─╮─╮─╮─╮─╮─╮");
+}
+
+fn scrolled_graph(keys: &str, y: u16) -> String {
+    graph(&draw_after(&many_branches_log(6), 18, 7, keys), y, 6)
+}
+
+#[test]
+fn l_shifts_the_graph_window_one_lane_to_the_right() {
+    assert_eq!(scrolled_graph("", 4), "│ │ │ ");
+    assert_eq!(scrolled_graph("l", 4), "│ │ │ ");
+    assert_eq!(scrolled_graph("ll", 4), "│ │ ● ");
+    assert_eq!(scrolled_graph("lll", 4), "│ ●   ");
+}
+
+#[test]
+fn h_shifts_the_graph_window_one_lane_to_the_left() {
+    assert_eq!(scrolled_graph("llh", 5), scrolled_graph("l", 5));
+    assert_eq!(scrolled_graph("lllh", 5), scrolled_graph("ll", 5));
+}
+
+#[test]
+fn h_at_the_left_edge_and_l_at_the_right_edge_do_nothing() {
+    assert_eq!(scrolled_graph("hhh", 5), scrolled_graph("", 5));
+    assert_eq!(scrolled_graph("llllll", 5), scrolled_graph("lll", 5));
+    assert_eq!(scrolled_graph("llllllhh", 5), scrolled_graph("l", 5));
+}
+
+#[test]
+fn the_graph_window_is_shifted_by_the_same_amount_on_every_row() {
+    assert_eq!(scrolled_graph("lll", 3), "●     ");
+    assert_eq!(scrolled_graph("lll", 4), "│ ●   ");
+    assert_eq!(scrolled_graph("lll", 5), "│ │ ● ");
+    assert_eq!(scrolled_graph("lll", 6), "╯─╯─╯ ");
+}
+
+#[test]
+fn h_and_l_keep_the_selection_and_j_and_k_keep_the_shift() {
+    let log = many_branches_log(6);
+
+    assert_eq!(highlighted_rows(&draw_after(&log, 18, 7, "jjlh")), vec![2]);
+    assert_eq!(draw_after(&log, 18, 7, "jjll"), draw_after(&log, 18, 7, "lljj"));
+    assert_eq!(draw_after(&log, 18, 7, "lljk"), draw_after(&log, 18, 7, "ll"));
 }

@@ -2,7 +2,7 @@ exclude_re = [
     # event_loop reads key events from the terminal through crossterm: neither seam reaches it, since the Seam 2 tests run the binary without a tty.
     'src/main\.rs:17:5: replace event_loop -> io::Result<\(\)> with Ok\(\(\)\)',
     # With a width of 0 the extra ellipsis lands past the end of the area and ratatui clips it, so nothing shown changes.
-    'src/draw\.rs:44:14: replace > with >= in truncate',
+    'src/draw\.rs:45:14: replace > with >= in truncate',
     # The range then starts at 2 * from, a cell always overwritten afterwards by the node or an end symbol.
     'src/lanes\.rs:170:41: replace \+ with \* in draw_cells',
     # An end never sits in the node's column: a joined lane lies right of the node and an opened lane takes a free column, never the node's.

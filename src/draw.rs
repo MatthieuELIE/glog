@@ -14,6 +14,7 @@ use crate::{
 
 const HASH_WIDTH: usize = 7;
 const SEPARATORS_WIDTH: usize = 4;
+const CELLS_PER_LANE: usize = 2;
 const ELLIPSIS: char = '…';
 fn column_width(commits: &[Commit], field: fn(&Commit) -> &str) -> usize {
     commits.iter().map(|commit| field(commit).width()).max().unwrap_or(0)
@@ -48,12 +49,21 @@ fn truncate(text: &str, width: usize) -> String {
     kept
 }
 
-fn graph_spans(row: &GraphRow, window_width: usize) -> Vec<Span<'static>> {
-    row.cells
+fn max_offset(graph_width: usize, window_width: usize) -> usize {
+    graph_width.saturating_sub(window_width).div_ceil(CELLS_PER_LANE)
+}
+
+fn graph_spans(row: &GraphRow, offset: usize, window_width: usize) -> Vec<Span<'static>> {
+    let mut spans: Vec<Span<'static>> = row
+        .cells
         .iter()
+        .skip(offset * CELLS_PER_LANE)
         .take(window_width)
         .map(|cell| Span::styled(cell.symbol.to_string(), Style::new().fg(LANE_COLORS[cell.color % LANE_COLORS.len()])))
-        .collect()
+        .collect();
+    spans.push(Span::raw(" ".repeat(window_width.saturating_sub(spans.len()))));
+
+    spans
 }
 
 fn badge_style(reference: &Ref, node_color: usize) -> Style {
@@ -85,8 +95,16 @@ fn badge_spans(commit: &Commit, row: &GraphRow) -> Vec<Span<'static>> {
         .collect()
 }
 
-fn commit_line(commit: &Commit, row: &GraphRow, window_width: usize, date_width: usize, author_width: usize, message_width: usize) -> Line<'static> {
-    let mut spans = graph_spans(row, window_width);
+fn commit_line(
+    commit: &Commit,
+    row: &GraphRow,
+    offset: usize,
+    window_width: usize,
+    date_width: usize,
+    author_width: usize,
+    message_width: usize,
+) -> Line<'static> {
+    let mut spans = graph_spans(row, offset, window_width);
     spans.extend([
         Span::raw(" "),
         Span::styled(commit.hash.clone(), Style::new().fg(OVERLAY)),
@@ -107,20 +125,21 @@ fn commit_line(commit: &Commit, row: &GraphRow, window_width: usize, date_width:
     Line::from(spans)
 }
 
-pub fn render(frame: &mut Frame, commits: &[Commit], state: &mut ListState) {
+pub fn render(frame: &mut Frame, commits: &[Commit], state: &mut ListState, offset: &mut usize) {
     let date_width = column_width(commits, |commit| &commit.date);
     let author_width = column_width(commits, |commit| &commit.author);
     let rows = place(commits);
     let graph_width = rows.first().map_or(0, |row| row.cells.len());
     let terminal_width = usize::from(frame.area().width);
     let window_width = graph_width.min(terminal_width / 3);
+    *offset = (*offset).min(max_offset(graph_width, window_width));
     let fixed_width = window_width + HASH_WIDTH + date_width + author_width + SEPARATORS_WIDTH;
     let message_width = terminal_width.saturating_sub(fixed_width);
 
     let lines: Vec<Line> = commits
         .iter()
         .zip(&rows)
-        .map(|(commit, row)| commit_line(commit, row, window_width, date_width, author_width, message_width))
+        .map(|(commit, row)| commit_line(commit, row, *offset, window_width, date_width, author_width, message_width))
         .collect();
 
     let list = List::new(lines).highlight_style(Style::new().bg(SURFACE1));

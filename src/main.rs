@@ -16,8 +16,10 @@ use ratatui::{
 fn event_loop(terminal: &mut DefaultTerminal, commits: &[Commit]) -> io::Result<()> {
     let mut state = ListState::default().with_selected(Some(0));
 
+    let mut offset = 0;
+
     loop {
-        terminal.draw(|frame| render(frame, commits, &mut state))?;
+        terminal.draw(|frame| render(frame, commits, &mut state, &mut offset))?;
 
         if let Event::Key(key) = event::read()?
             && let KeyCode::Char(character) = key.code
@@ -25,7 +27,7 @@ fn event_loop(terminal: &mut DefaultTerminal, commits: &[Commit]) -> io::Result<
             if nav::quits(character, key.modifiers) {
                 return Ok(());
             }
-            nav::press(&mut state, character, commits.len());
+            nav::press(&mut state, &mut offset, character, commits.len());
         }
     }
 }
