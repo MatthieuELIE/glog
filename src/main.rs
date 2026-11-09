@@ -36,7 +36,7 @@ fn event_loop(terminal: &mut DefaultTerminal, commits: &[Commit]) -> io::Result<
 #[command(
     version,
     about = "A read-only, coloured git log graph for the terminal",
-    after_help = "Keys:\n  j       Move the selection down\n  k       Move the selection up\n  q       Quit\n  Ctrl+C  Quit"
+    after_help = "Keys:\n  j       Move the selection down\n  k       Move the selection up\n  h       Scroll the graph left\n  l       Scroll the graph right\n  q       Quit\n  Ctrl+C  Quit"
 )]
 struct Cli {}
 
