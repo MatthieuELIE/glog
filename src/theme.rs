@@ -5,7 +5,7 @@ pub const TEXT: Color = Color::Rgb(0xcd, 0xd6, 0xf4);
 pub const SUBTEXT: Color = Color::Rgb(0xa6, 0xad, 0xc8);
 pub const LAVENDER: Color = Color::Rgb(0xb4, 0xbe, 0xfe);
 pub const OVERLAY: Color = Color::Rgb(0x6c, 0x70, 0x86);
-pub const SURFACE0: Color = Color::Rgb(0x31, 0x32, 0x44);
+pub const SURFACE1: Color = Color::Rgb(0x45, 0x47, 0x5a);
 pub const YELLOW: Color = Color::Rgb(0xf9, 0xe2, 0xaf);
 
 pub const LANE_COLORS: [Color; 8] = [

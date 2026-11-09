@@ -117,7 +117,7 @@ fn colours_author_in_lavender_apart_from_the_date() {
     assert_eq!(buffer[(22, 1)].fg, Color::Rgb(0xb4, 0xbe, 0xfe));
 }
 
-const SURFACE0: Color = Color::Rgb(0x31, 0x32, 0x44);
+const SURFACE1: Color = Color::Rgb(0x45, 0x47, 0x5a);
 
 fn five_commits() -> String {
     ["e", "d", "c", "b", "a"]
@@ -126,15 +126,15 @@ fn five_commits() -> String {
 }
 
 fn highlighted_rows(buffer: &Buffer) -> Vec<u16> {
-    (0..buffer.area.height).filter(|&y| buffer[(0, y)].bg == SURFACE0).collect()
+    (0..buffer.area.height).filter(|&y| buffer[(0, y)].bg == SURFACE1).collect()
 }
 
 #[test]
-fn highlights_the_first_row_in_surface0_at_start() {
+fn highlights_the_first_row_in_surface1_at_start() {
     let buffer = draw(&five_commits(), 40, 5);
 
     assert_eq!(highlighted_rows(&buffer), vec![0]);
-    assert_eq!(buffer[(39, 0)].bg, SURFACE0);
+    assert_eq!(buffer[(39, 0)].bg, SURFACE1);
     assert_eq!(buffer[(2, 0)].fg, Color::Rgb(0x6c, 0x70, 0x86));
 }
 
