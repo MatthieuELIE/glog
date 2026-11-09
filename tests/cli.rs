@@ -59,6 +59,15 @@ fn version_flags_print_the_manifest_version_on_stdout() {
 }
 
 #[test]
+fn an_unknown_argument_fails_with_code_2_and_a_message_on_stderr() {
+    let output = run_outside_a_repository(&["--bogus"]);
+
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("--bogus"));
+}
+
+#[test]
 fn help_flags_print_usage_description_and_keys_on_stdout() {
     for flag in ["--help", "-h"] {
         let output = run_outside_a_repository(&[flag]);
