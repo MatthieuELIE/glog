@@ -48,9 +48,10 @@ fn truncate(text: &str, width: usize) -> String {
     kept
 }
 
-fn graph_spans(row: &GraphRow) -> Vec<Span<'static>> {
+fn graph_spans(row: &GraphRow, window_width: usize) -> Vec<Span<'static>> {
     row.cells
         .iter()
+        .take(window_width)
         .map(|cell| Span::styled(cell.symbol.to_string(), Style::new().fg(LANE_COLORS[cell.color % LANE_COLORS.len()])))
         .collect()
 }
@@ -84,8 +85,8 @@ fn badge_spans(commit: &Commit, row: &GraphRow) -> Vec<Span<'static>> {
         .collect()
 }
 
-fn commit_line(commit: &Commit, row: &GraphRow, date_width: usize, author_width: usize, message_width: usize) -> Line<'static> {
-    let mut spans = graph_spans(row);
+fn commit_line(commit: &Commit, row: &GraphRow, window_width: usize, date_width: usize, author_width: usize, message_width: usize) -> Line<'static> {
+    let mut spans = graph_spans(row, window_width);
     spans.extend([
         Span::raw(" "),
         Span::styled(commit.hash.clone(), Style::new().fg(OVERLAY)),
@@ -111,13 +112,15 @@ pub fn render(frame: &mut Frame, commits: &[Commit], state: &mut ListState) {
     let author_width = column_width(commits, |commit| &commit.author);
     let rows = place(commits);
     let graph_width = rows.first().map_or(0, |row| row.cells.len());
-    let fixed_width = graph_width + HASH_WIDTH + date_width + author_width + SEPARATORS_WIDTH;
-    let message_width = usize::from(frame.area().width).saturating_sub(fixed_width);
+    let terminal_width = usize::from(frame.area().width);
+    let window_width = graph_width.min(terminal_width / 3);
+    let fixed_width = window_width + HASH_WIDTH + date_width + author_width + SEPARATORS_WIDTH;
+    let message_width = terminal_width.saturating_sub(fixed_width);
 
     let lines: Vec<Line> = commits
         .iter()
         .zip(&rows)
-        .map(|(commit, row)| commit_line(commit, row, date_width, author_width, message_width))
+        .map(|(commit, row)| commit_line(commit, row, window_width, date_width, author_width, message_width))
         .collect();
 
     let list = List::new(lines).highlight_style(Style::new().bg(SURFACE1));
