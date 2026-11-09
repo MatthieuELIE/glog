@@ -32,3 +32,28 @@ fn glog_in_a_repository_without_commit_fails_with_its_own_message() {
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("no commits"));
 }
+
+fn run_outside_a_repository(args: &[&str]) -> std::process::Output {
+    let dir = TempDir::new();
+
+    Command::new(env!("CARGO_BIN_EXE_glog"))
+        .current_dir(dir.path())
+        .env_remove("GIT_DIR")
+        .args(args)
+        .output()
+        .unwrap()
+}
+
+#[test]
+fn version_flags_print_the_manifest_version_on_stdout() {
+    for flag in ["--version", "-V"] {
+        let output = run_outside_a_repository(&[flag]);
+
+        assert!(output.status.success(), "{flag}");
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout),
+            format!("glog {}\n", env!("CARGO_PKG_VERSION")),
+            "{flag}"
+        );
+    }
+}
