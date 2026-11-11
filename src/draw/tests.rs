@@ -3,6 +3,7 @@ use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, style::Color, widg
 use crate::{draw::render, nav, parse::parse};
 
 const SEP: &str = "\x1f";
+const NOW: i64 = 2_000_000;
 
 fn line(hash: &str, parents: &str, refs: &str, date: &str, author: &str, subject: &str) -> String {
     [hash, parents, refs, date, author, subject].join(SEP)
@@ -17,10 +18,10 @@ fn draw_after(log: &str, width: u16, height: u16, keys: &str) -> Buffer {
     let mut state = ListState::default().with_selected(Some(0));
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
     let mut offset = 0;
-    terminal.draw(|frame| render(frame, &commits, &mut state, &mut offset)).unwrap();
+    terminal.draw(|frame| render(frame, &commits, &mut state, &mut offset, NOW)).unwrap();
     for key in keys.chars() {
         nav::press(&mut state, &mut offset, key, commits.len());
-        terminal.draw(|frame| render(frame, &commits, &mut state, &mut offset)).unwrap();
+        terminal.draw(|frame| render(frame, &commits, &mut state, &mut offset, NOW)).unwrap();
     }
 
     terminal.backend().buffer().clone()
@@ -33,8 +34,8 @@ fn row_text(buffer: &Buffer, y: u16) -> String {
 #[test]
 fn shows_one_row_per_commit_newest_first() {
     let log = [
-        line("bbbbbbbb", "aaaaaaaa", "", "1 day ago", "Ann", "second"),
-        line("aaaaaaaa", "", "", "2 days ago", "Ann", "first"),
+        line("bbbbbbbb", "aaaaaaaa", "", "1913600", "Ann", "second"),
+        line("aaaaaaaa", "", "", "1827200", "Ann", "first"),
     ]
     .join("\n");
 
@@ -47,8 +48,8 @@ fn shows_one_row_per_commit_newest_first() {
 
 fn two_commits() -> String {
     [
-        line("1234567890abcdef", "fedcba0987654321", "", "3 days ago", "Ann", "short subject"),
-        line("fedcba0987654321", "", "", "2 weeks ago", "Bartholomew", "older"),
+        line("1234567890abcdef", "fedcba0987654321", "", "1740800", "Ann", "short subject"),
+        line("fedcba0987654321", "", "", "790400", "Bartholomew", "older"),
     ]
     .join("\n")
 }
@@ -57,16 +58,25 @@ fn two_commits() -> String {
 fn aligns_graph_hash_date_author_and_message_columns() {
     let buffer = draw(&two_commits(), 60, 2);
 
-    assert_eq!(row_text(&buffer, 0).trim_end(), "● 1234567 3 days ago  Ann         short subject");
-    assert_eq!(row_text(&buffer, 1).trim_end(), "● fedcba0 2 weeks ago Bartholomew older");
+    assert_eq!(row_text(&buffer, 0).trim_end(), "● 1234567 3d   Ann         short subject");
+    assert_eq!(row_text(&buffer, 1).trim_end(), "● fedcba0 14d  Bartholomew older");
+}
+
+#[test]
+fn shows_the_date_on_four_cells_whatever_the_loaded_commits() {
+    let log = line("1234567890abcdef", "", "", "1999990", "Ann", "short subject");
+
+    let buffer = draw(&log, 40, 1);
+
+    assert_eq!(row_text(&buffer, 0).trim_end(), "● 1234567 now  Ann short subject");
 }
 
 #[test]
 fn draws_head_as_a_hollow_node_and_other_commits_as_filled_nodes() {
     let log = [
-        line("bbbbbbbb", "aaaaaaaa", "origin/main", "1 day ago", "Ann", "second"),
-        line("aaaaaaaa", "", "HEAD -> main, tag: v1", "2 days ago", "Ann", "first"),
-        line("cccccccc", "", "HEAD", "3 days ago", "Ann", "detached"),
+        line("bbbbbbbb", "aaaaaaaa", "origin/main", "1913600", "Ann", "second"),
+        line("aaaaaaaa", "", "HEAD -> main, tag: v1", "1827200", "Ann", "first"),
+        line("cccccccc", "", "HEAD", "1740800", "Ann", "detached"),
     ]
     .join("\n");
 
@@ -80,8 +90,8 @@ fn draws_head_as_a_hollow_node_and_other_commits_as_filled_nodes() {
 #[test]
 fn aligns_columns_by_display_width_for_wide_characters() {
     let log = [
-        line("1234567890abcdef", "", "", "3 days ago", "山田", "Wide"),
-        line("fedcba0987654321", "", "", "3 days ago", "Ann", "Narrow"),
+        line("1234567890abcdef", "", "", "1740800", "山田", "Wide"),
+        line("fedcba0987654321", "", "", "1740800", "Ann", "Narrow"),
     ]
     .join("\n");
 
@@ -95,9 +105,9 @@ fn aligns_columns_by_display_width_for_wide_characters() {
 
 #[test]
 fn truncates_the_message_first_in_a_narrow_terminal() {
-    let buffer = draw(&two_commits(), 38, 2);
+    let buffer = draw(&two_commits(), 31, 2);
 
-    assert_eq!(row_text(&buffer, 0), "● 1234567 3 days ago  Ann         sho…");
+    assert_eq!(row_text(&buffer, 0), "● 1234567 3d   Ann         sho…");
 }
 
 #[test]
@@ -122,7 +132,7 @@ const SURFACE1: Color = Color::Rgb(0x45, 0x47, 0x5a);
 
 fn five_commits() -> String {
     ["e", "d", "c", "b", "a"]
-        .map(|name| line(&name.repeat(8), "", "", "1 day ago", "Ann", &format!("commit {name}")))
+        .map(|name| line(&name.repeat(8), "", "", "1913600", "Ann", &format!("commit {name}")))
         .join("\n")
 }
 
@@ -201,10 +211,10 @@ fn graph(buffer: &Buffer, y: u16, width: u16) -> String {
 
 fn branch_log() -> String {
     [
-        line("ccccccc", "bbbbbbb", "", "1 day ago", "Ann", "c"),
-        line("bbbbbbb", "aaaaaaa", "", "1 day ago", "Ann", "b"),
-        line("sssssss", "aaaaaaa", "", "1 day ago", "Ann", "s"),
-        line("aaaaaaa", "", "", "1 day ago", "Ann", "a"),
+        line("ccccccc", "bbbbbbb", "", "1913600", "Ann", "c"),
+        line("bbbbbbb", "aaaaaaa", "", "1913600", "Ann", "b"),
+        line("sssssss", "aaaaaaa", "", "1913600", "Ann", "s"),
+        line("aaaaaaa", "", "", "1913600", "Ann", "a"),
     ]
     .join("\n")
 }
@@ -228,10 +238,10 @@ fn opens_a_lane_for_a_branch_and_joins_the_lane_of_its_parent() {
 
 fn merge_log() -> String {
     [
-        line("mmmmmmm", "bbbbbbb sssssss", "", "1 day ago", "Ann", "m"),
-        line("bbbbbbb", "aaaaaaa", "", "1 day ago", "Ann", "b"),
-        line("sssssss", "aaaaaaa", "", "1 day ago", "Ann", "s"),
-        line("aaaaaaa", "", "", "1 day ago", "Ann", "a"),
+        line("mmmmmmm", "bbbbbbb sssssss", "", "1913600", "Ann", "m"),
+        line("bbbbbbb", "aaaaaaa", "", "1913600", "Ann", "b"),
+        line("sssssss", "aaaaaaa", "", "1913600", "Ann", "s"),
+        line("aaaaaaa", "", "", "1913600", "Ann", "a"),
     ]
     .join("\n")
 }
@@ -249,8 +259,8 @@ fn opens_a_lane_for_the_second_parent_of_a_merge() {
 #[test]
 fn opens_a_lane_for_each_parent_after_the_first_of_an_octopus_merge() {
     let log = [
-        line("mmmmmmm", "bbbbbbb sssssss ttttttt", "", "1 day ago", "Ann", "m"),
-        line("bbbbbbb", "", "", "1 day ago", "Ann", "b"),
+        line("mmmmmmm", "bbbbbbb sssssss ttttttt", "", "1913600", "Ann", "m"),
+        line("bbbbbbb", "", "", "1913600", "Ann", "b"),
     ]
     .join("\n");
 
@@ -262,7 +272,7 @@ fn opens_a_lane_for_each_parent_after_the_first_of_an_octopus_merge() {
 
 fn tips(count: usize) -> String {
     (0..count)
-        .map(|n| line(&format!("tip{n:04}"), "", "", "1 day ago", "Ann", "t"))
+        .map(|n| line(&format!("tip{n:04}"), "", "", "1913600", "Ann", "t"))
         .collect::<Vec<_>>()
         .join("\n")
 }
@@ -270,7 +280,7 @@ fn tips(count: usize) -> String {
 fn open_lanes_log(count: usize) -> String {
     let parents: Vec<String> = (0..count).map(|n| format!("par{n:04}")).collect();
 
-    line("mmmmmmm", &parents.join(" "), "", "1 day ago", "Ann", "m")
+    line("mmmmmmm", &parents.join(" "), "", "1913600", "Ann", "m")
 }
 
 #[test]
@@ -311,9 +321,9 @@ fn a_lane_reusing_a_freed_column_takes_the_next_colour_of_the_cycle() {
 fn links_commits_to_parents_given_as_full_hashes() {
     let full = |short: &str| format!("{short}{}", "0".repeat(33));
     let log = [
-        line(&full("1111111"), &full("2222222"), "", "1 day ago", "Ann", "tip"),
-        line(&full("2222222"), "", "", "1 day ago", "Ann", "root"),
-        line(&full("3333333"), "", "", "1 day ago", "Ann", "other"),
+        line(&full("1111111"), &full("2222222"), "", "1913600", "Ann", "tip"),
+        line(&full("2222222"), "", "", "1913600", "Ann", "root"),
+        line(&full("3333333"), "", "", "1913600", "Ann", "other"),
     ]
     .join("\n");
 
@@ -326,9 +336,9 @@ fn links_commits_to_parents_given_as_full_hashes() {
 fn does_not_link_commits_sharing_their_first_seven_characters() {
     let full = |tail: &str| format!("bbbbbbb{tail}{}", "0".repeat(32));
     let log = [
-        line(&format!("aaaaaaa1{}", "0".repeat(32)), &full("1"), "", "1 day ago", "Ann", "child"),
-        line(&full("2"), "", "", "1 day ago", "Ann", "unrelated"),
-        line(&full("1"), "", "", "1 day ago", "Ann", "parent"),
+        line(&format!("aaaaaaa1{}", "0".repeat(32)), &full("1"), "", "1913600", "Ann", "child"),
+        line(&full("2"), "", "", "1913600", "Ann", "unrelated"),
+        line(&full("1"), "", "", "1913600", "Ann", "parent"),
     ]
     .join("\n");
 
@@ -341,9 +351,9 @@ fn does_not_link_commits_sharing_their_first_seven_characters() {
 #[test]
 fn a_new_lane_takes_the_leftmost_free_column() {
     let log = [
-        line("xxxxxxx", "x000000", "", "1 day ago", "Ann", "x"),
-        line("yyyyyyy", "", "", "1 day ago", "Ann", "y"),
-        line("wwwwwww", "w000000", "", "1 day ago", "Ann", "w"),
+        line("xxxxxxx", "x000000", "", "1913600", "Ann", "x"),
+        line("yyyyyyy", "", "", "1913600", "Ann", "y"),
+        line("wwwwwww", "w000000", "", "1913600", "Ann", "w"),
     ]
     .join("\n");
 
@@ -354,7 +364,7 @@ fn a_new_lane_takes_the_leftmost_free_column() {
 }
 
 fn badge_log(refs: &str) -> String {
-    line("aaaaaaa", "", refs, "1 day ago", "Ann", "subject")
+    line("aaaaaaa", "", refs, "1913600", "Ann", "subject")
 }
 
 fn colour_at(buffer: &Buffer, y: u16, text: &str) -> Color {
@@ -372,17 +382,17 @@ fn shows_the_refs_of_a_commit_as_badges_before_its_message() {
 
     assert_eq!(
         row_text(&buffer, 0).trim_end(),
-        "○ aaaaaaa 1 day ago Ann [HEAD] [main] [origin/main] [◆ v1.0] subject"
+        "○ aaaaaaa 1d   Ann [HEAD] [main] [origin/main] [◆ v1.0] subject"
     );
 }
 
 #[test]
 fn colours_a_local_branch_badge_in_the_lane_colour_of_its_commit() {
     let log = [
-        line("ccccccc", "bbbbbbb", "", "1 day ago", "Ann", "c"),
-        line("bbbbbbb", "aaaaaaa", "", "1 day ago", "Ann", "b"),
-        line("sssssss", "aaaaaaa", "refs/heads/side", "1 day ago", "Ann", "s"),
-        line("aaaaaaa", "", "", "1 day ago", "Ann", "a"),
+        line("ccccccc", "bbbbbbb", "", "1913600", "Ann", "c"),
+        line("bbbbbbb", "aaaaaaa", "", "1913600", "Ann", "b"),
+        line("sssssss", "aaaaaaa", "refs/heads/side", "1913600", "Ann", "s"),
+        line("aaaaaaa", "", "", "1913600", "Ann", "a"),
     ]
     .join("\n");
 
@@ -428,7 +438,7 @@ fn gives_origin_head_no_badge() {
 #[test]
 fn leaves_the_terminal_background_unpainted_under_badges() {
     let log = [
-        line("bbbbbbb", "aaaaaaa", "", "1 day ago", "Ann", "child"),
+        line("bbbbbbb", "aaaaaaa", "", "1913600", "Ann", "child"),
         badge_log("HEAD -> refs/heads/main, tag: refs/tags/v1.0"),
     ]
     .join("\n");
@@ -439,19 +449,19 @@ fn leaves_the_terminal_background_unpainted_under_badges() {
 
 #[test]
 fn truncates_the_message_after_the_badges_in_a_narrow_terminal() {
-    let buffer = draw(&badge_log("refs/heads/main"), 36, 1);
+    let buffer = draw(&badge_log("refs/heads/main"), 31, 1);
 
-    assert_eq!(row_text(&buffer, 0), "● aaaaaaa 1 day ago Ann [main] subj…");
+    assert_eq!(row_text(&buffer, 0), "● aaaaaaa 1d   Ann [main] subj…");
 }
 
 #[test]
 fn a_lane_passing_under_a_junction_keeps_its_vertical_line() {
     let log = [
-        line("xxxxxxx", "aaaaaaa", "", "1 day ago", "Ann", "x"),
-        line("yyyyyyy", "qqqqqqq", "", "1 day ago", "Ann", "y"),
-        line("sssssss", "aaaaaaa", "", "1 day ago", "Ann", "s"),
-        line("aaaaaaa", "", "", "1 day ago", "Ann", "a"),
-        line("qqqqqqq", "", "", "1 day ago", "Ann", "q"),
+        line("xxxxxxx", "aaaaaaa", "", "1913600", "Ann", "x"),
+        line("yyyyyyy", "qqqqqqq", "", "1913600", "Ann", "y"),
+        line("sssssss", "aaaaaaa", "", "1913600", "Ann", "s"),
+        line("aaaaaaa", "", "", "1913600", "Ann", "a"),
+        line("qqqqqqq", "", "", "1913600", "Ann", "q"),
     ]
     .join("\n");
 
@@ -464,11 +474,11 @@ fn a_lane_passing_under_a_junction_keeps_its_vertical_line() {
 #[test]
 fn a_merge_parent_takes_the_column_freed_by_a_lane_ending_on_the_same_row() {
     let log = [
-        line("xxxxxxx", "mmmmmmm", "", "1 day ago", "Ann", "x"),
-        line("sssssss", "mmmmmmm", "", "1 day ago", "Ann", "s"),
-        line("mmmmmmm", "bbbbbbb ppppppp", "", "1 day ago", "Ann", "m"),
-        line("bbbbbbb", "", "", "1 day ago", "Ann", "b"),
-        line("ppppppp", "", "", "1 day ago", "Ann", "p"),
+        line("xxxxxxx", "mmmmmmm", "", "1913600", "Ann", "x"),
+        line("sssssss", "mmmmmmm", "", "1913600", "Ann", "s"),
+        line("mmmmmmm", "bbbbbbb ppppppp", "", "1913600", "Ann", "m"),
+        line("bbbbbbb", "", "", "1913600", "Ann", "b"),
+        line("ppppppp", "", "", "1913600", "Ann", "p"),
     ]
     .join("\n");
 
@@ -487,15 +497,15 @@ fn orders_badges_head_then_local_then_remote_then_tags_keeping_git_order_within_
 
     assert_eq!(
         row_text(&buffer, 0).trim_end(),
-        "○ aaaaaaa 1 day ago Ann [HEAD] [zeta] [feature/a] [origin/feature/a] [◆ v1] subject"
+        "○ aaaaaaa 1d   Ann [HEAD] [zeta] [feature/a] [origin/feature/a] [◆ v1] subject"
     );
 }
 
 #[test]
 fn colours_each_junction_segment_like_the_corner_that_ends_it() {
     let log = [
-        line("mmmmmmm", "bbbbbbb sssssss ttttttt", "", "1 day ago", "Ann", "m"),
-        line("bbbbbbb", "", "", "1 day ago", "Ann", "b"),
+        line("mmmmmmm", "bbbbbbb sssssss ttttttt", "", "1913600", "Ann", "m"),
+        line("bbbbbbb", "", "", "1913600", "Ann", "b"),
     ]
     .join("\n");
 
@@ -509,8 +519,8 @@ fn colours_each_junction_segment_like_the_corner_that_ends_it() {
 #[test]
 fn draws_a_junction_across_four_lanes_without_a_gap() {
     let log = [
-        line("mmmmmmm", "bbbbbbb sssssss ttttttt uuuuuuu", "", "1 day ago", "Ann", "m"),
-        line("bbbbbbb", "", "", "1 day ago", "Ann", "b"),
+        line("mmmmmmm", "bbbbbbb sssssss ttttttt uuuuuuu", "", "1913600", "Ann", "m"),
+        line("bbbbbbb", "", "", "1913600", "Ann", "b"),
     ]
     .join("\n");
 
@@ -522,12 +532,12 @@ fn draws_a_junction_across_four_lanes_without_a_gap() {
 #[test]
 fn opens_a_lane_left_of_the_node_with_an_opening_corner_facing_right() {
     let log = [
-        line("xxxxxxx", "ppppppp", "", "1 day ago", "Ann", "x"),
-        line("yyyyyyy", "mmmmmmm", "", "1 day ago", "Ann", "y"),
-        line("ppppppp", "", "", "1 day ago", "Ann", "p"),
-        line("mmmmmmm", "bbbbbbb sssssss", "", "1 day ago", "Ann", "m"),
-        line("bbbbbbb", "", "", "1 day ago", "Ann", "b"),
-        line("sssssss", "", "", "1 day ago", "Ann", "s"),
+        line("xxxxxxx", "ppppppp", "", "1913600", "Ann", "x"),
+        line("yyyyyyy", "mmmmmmm", "", "1913600", "Ann", "y"),
+        line("ppppppp", "", "", "1913600", "Ann", "p"),
+        line("mmmmmmm", "bbbbbbb sssssss", "", "1913600", "Ann", "m"),
+        line("bbbbbbb", "", "", "1913600", "Ann", "b"),
+        line("sssssss", "", "", "1913600", "Ann", "s"),
     ]
     .join("\n");
 
@@ -537,9 +547,9 @@ fn opens_a_lane_left_of_the_node_with_an_opening_corner_facing_right() {
 }
 
 fn many_branches_log(count: usize) -> String {
-    let tips = (0..count).map(|n| line(&format!("{n:07x}"), "ba5e000", "", "1 day ago", "Ann", &format!("branch {n}")));
+    let tips = (0..count).map(|n| line(&format!("{n:07x}"), "ba5e000", "", "1913600", "Ann", &format!("branch {n}")));
 
-    tips.chain([line("ba5e000", "", "", "1 day ago", "Ann", "base")])
+    tips.chain([line("ba5e000", "", "", "1913600", "Ann", "base")])
         .collect::<Vec<_>>()
         .join("\n")
 }

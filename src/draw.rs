@@ -7,12 +7,14 @@ use ratatui::{
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
+    date::relative,
     lanes::{GraphRow, place},
     parse::{Commit, Ref, RefKind},
     theme::{LANE_COLORS, LAVENDER, OVERLAY, SUBTEXT, SURFACE1, TEXT, YELLOW},
 };
 
 const HASH_WIDTH: usize = 7;
+const DATE_WIDTH: usize = 4;
 const SEPARATORS_WIDTH: usize = 4;
 const CELLS_PER_LANE: usize = 2;
 const ELLIPSIS: char = '…';
@@ -116,7 +118,7 @@ fn commit_line(
     row: &GraphRow,
     offset: usize,
     window_width: usize,
-    date_width: usize,
+    now: i64,
     author_width: usize,
     message_width: usize,
 ) -> Line<'static> {
@@ -125,7 +127,7 @@ fn commit_line(
         Span::raw(" "),
         Span::styled(commit.hash.chars().take(HASH_WIDTH).collect::<String>(), Style::new().fg(OVERLAY)),
         Span::raw(" "),
-        Span::styled(pad(&commit.date, date_width), Style::new().fg(SUBTEXT)),
+        Span::styled(pad(&relative(now, commit.time), DATE_WIDTH), Style::new().fg(SUBTEXT)),
         Span::raw(" "),
         Span::styled(pad(&commit.author, author_width), Style::new().fg(LAVENDER)),
         Span::raw(" "),
@@ -141,21 +143,20 @@ fn commit_line(
     Line::from(spans)
 }
 
-pub fn render(frame: &mut Frame, commits: &[Commit], state: &mut ListState, offset: &mut usize) {
-    let date_width = column_width(commits, |commit| &commit.date);
+pub fn render(frame: &mut Frame, commits: &[Commit], state: &mut ListState, offset: &mut usize, now: i64) {
     let author_width = column_width(commits, |commit| &commit.author);
     let rows = place(commits);
     let graph_width = rows.first().map_or(0, |row| row.cells.len());
     let terminal_width = usize::from(frame.area().width);
     let window_width = graph_width.min(terminal_width / 3);
     *offset = (*offset).min(max_offset(graph_width, window_width));
-    let fixed_width = window_width + HASH_WIDTH + date_width + author_width + SEPARATORS_WIDTH;
+    let fixed_width = window_width + HASH_WIDTH + DATE_WIDTH + author_width + SEPARATORS_WIDTH;
     let message_width = terminal_width.saturating_sub(fixed_width);
 
     let lines: Vec<Line> = commits
         .iter()
         .zip(&rows)
-        .map(|(commit, row)| commit_line(commit, row, *offset, window_width, date_width, author_width, message_width))
+        .map(|(commit, row)| commit_line(commit, row, *offset, window_width, now, author_width, message_width))
         .collect();
 
     let list = List::new(lines).highlight_style(Style::new().bg(SURFACE1));

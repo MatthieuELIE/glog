@@ -1,6 +1,6 @@
 use std::{path::Path, process::Command};
 
-const LOG_FORMAT: &str = "--format=%H%x1f%P%x1f%D%x1f%ar%x1f%an%x1f%s";
+const LOG_FORMAT: &str = "--format=%H%x1f%P%x1f%D%x1f%at%x1f%an%x1f%s";
 
 pub fn read_log(dir: &Path) -> Result<String, String> {
     let output = Command::new("git")
