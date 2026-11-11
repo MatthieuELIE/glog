@@ -1,6 +1,10 @@
-use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, style::Color, widgets::ListState};
+use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, style::Color};
 
-use crate::{draw::render, nav, parse::parse};
+use crate::{
+    draw::{graph_width, max_offset, render},
+    nav::{View, fit, press},
+    parse::parse,
+};
 
 const SEP: &str = "\x1f";
 const NOW: i64 = 2_000_000;
@@ -15,13 +19,18 @@ fn draw(log: &str, width: u16, height: u16) -> Buffer {
 
 fn draw_after(log: &str, width: u16, height: u16, keys: &str) -> Buffer {
     let commits = parse(log);
-    let mut state = ListState::default().with_selected(Some(0));
+    let graph_width = graph_width(&commits);
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
-    let mut offset = 0;
-    terminal.draw(|frame| render(frame, &commits, &mut state, &mut offset, NOW)).unwrap();
+    let mut view = View::default();
+    let mut frame_after = |view: View| {
+        let view = fit(view, commits.len(), usize::from(height), max_offset(graph_width, usize::from(width)));
+        terminal.draw(|frame| render(frame, &commits, view, NOW)).unwrap();
+
+        view
+    };
+    view = frame_after(view);
     for key in keys.chars() {
-        nav::press(&mut state, &mut offset, key, commits.len());
-        terminal.draw(|frame| render(frame, &commits, &mut state, &mut offset, NOW)).unwrap();
+        view = frame_after(press(view, key, commits.len()));
     }
 
     terminal.backend().buffer().clone()

@@ -7,15 +7,14 @@ use std::{
 
 use clap::Parser;
 use glog::{
-    draw::render,
-    nav,
+    draw::{graph_width, max_offset, render},
+    nav::{self, View, fit, press},
     parse::{Commit, parse},
     read::read_log,
 };
 use ratatui::{
     DefaultTerminal,
     crossterm::event::{self, Event, KeyCode},
-    widgets::ListState,
 };
 
 fn clock_seconds() -> i64 {
@@ -25,12 +24,19 @@ fn clock_seconds() -> i64 {
 }
 
 fn event_loop(terminal: &mut DefaultTerminal, commits: &[Commit], now: i64) -> io::Result<()> {
-    let mut state = ListState::default().with_selected(Some(0));
+    let graph_width = graph_width(commits);
 
-    let mut offset = 0;
+    let mut view = View::default();
 
     loop {
-        terminal.draw(|frame| render(frame, commits, &mut state, &mut offset, now))?;
+        let size = terminal.size()?;
+        view = fit(
+            view,
+            commits.len(),
+            usize::from(size.height),
+            max_offset(graph_width, usize::from(size.width)),
+        );
+        terminal.draw(|frame| render(frame, commits, view, now))?;
 
         if let Event::Key(key) = event::read()?
             && let KeyCode::Char(character) = key.code
@@ -38,7 +44,7 @@ fn event_loop(terminal: &mut DefaultTerminal, commits: &[Commit], now: i64) -> i
             if nav::quits(character, key.modifiers) {
                 return Ok(());
             }
-            nav::press(&mut state, &mut offset, character, commits.len());
+            view = press(view, character, commits.len());
         }
     }
 }
