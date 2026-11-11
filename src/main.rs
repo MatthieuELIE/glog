@@ -10,7 +10,7 @@ use clap::Parser;
 use glog::{
     draw::{max_offset, render},
     history::History,
-    nav::{self, Loading, View, fit, list_height, press},
+    nav::{self, Loading, View, fit, list_height, page, press},
     read::{Loaded, Reader, start},
 };
 use ratatui::{
@@ -75,7 +75,7 @@ fn event_loop(terminal: &mut DefaultTerminal, reader: &Reader, history: &mut His
             if nav::quits(character, key.modifiers) {
                 return Ok(());
             }
-            view = press(view, character, history.len());
+            view = press(view, character, key.modifiers, history.len(), page(usize::from(size.height), &loading));
         }
     }
 }
@@ -104,7 +104,7 @@ fn first_event(reader: &Reader) -> Loaded {
 #[command(
     version,
     about = "A read-only, coloured git log graph for the terminal",
-    after_help = "Keys:\n  j       Move the selection down\n  k       Move the selection up\n  h       Scroll the graph left\n  l       Scroll the graph right\n  q       Quit\n  Ctrl+C  Quit"
+    after_help = "Keys:\n  j       Move the selection down\n  k       Move the selection up\n  h       Scroll the graph left\n  l       Scroll the graph right\n  g       Select the first commit\n  G       Select the last loaded commit\n  Ctrl+d  Move the selection down half a page\n  Ctrl+u  Move the selection up half a page\n  q       Quit\n  Ctrl+C  Quit"
 )]
 struct Cli {}
 

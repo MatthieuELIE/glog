@@ -15,16 +15,20 @@ It is developed on macOS and tested on Linux; it has not been tried on Windows.
 
 ## Usage
 
-Run `glog` in a git repository. It reads the current folder and changes nothing.
+Run `glog` in a git repository. It reads the current folder and changes nothing. It opens while the history is still loading, with a status line on the last row until it is done.
 
-| Key      | Action                     |
-| -------- | -------------------------- |
-| `j`      | Move the selection down    |
-| `k`      | Move the selection up      |
-| `h`      | Scroll the graph left      |
-| `l`      | Scroll the graph right     |
-| `q`      | Quit                       |
-| `Ctrl+C` | Quit                       |
+| Key      | Action                        |
+| -------- | ----------------------------- |
+| `j`      | Move the selection down       |
+| `k`      | Move the selection up         |
+| `h`      | Scroll the graph left         |
+| `l`      | Scroll the graph right        |
+| `g`      | Select the first commit       |
+| `G`      | Select the last loaded commit |
+| `Ctrl+d` | Move down half a page         |
+| `Ctrl+u` | Move up half a page           |
+| `q`      | Quit                          |
+| `Ctrl+C` | Quit                          |
 
 `glog --help` prints the same keys, and `glog --version` the installed version.
 
