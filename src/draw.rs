@@ -123,7 +123,7 @@ fn commit_line(
     let mut spans = graph_spans(row, offset, window_width);
     spans.extend([
         Span::raw(" "),
-        Span::styled(commit.hash.clone(), Style::new().fg(OVERLAY)),
+        Span::styled(commit.hash.chars().take(HASH_WIDTH).collect::<String>(), Style::new().fg(OVERLAY)),
         Span::raw(" "),
         Span::styled(pad(&commit.date, date_width), Style::new().fg(SUBTEXT)),
         Span::raw(" "),
