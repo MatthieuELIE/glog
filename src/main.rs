@@ -1,4 +1,9 @@
-use std::{io, path::Path, process::ExitCode};
+use std::{
+    io,
+    path::Path,
+    process::ExitCode,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use clap::Parser;
 use glog::{
@@ -13,13 +18,19 @@ use ratatui::{
     widgets::ListState,
 };
 
-fn event_loop(terminal: &mut DefaultTerminal, commits: &[Commit]) -> io::Result<()> {
+fn clock_seconds() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |elapsed| i64::try_from(elapsed.as_secs()).unwrap_or(i64::MAX))
+}
+
+fn event_loop(terminal: &mut DefaultTerminal, commits: &[Commit], now: i64) -> io::Result<()> {
     let mut state = ListState::default().with_selected(Some(0));
 
     let mut offset = 0;
 
     loop {
-        terminal.draw(|frame| render(frame, commits, &mut state, &mut offset))?;
+        terminal.draw(|frame| render(frame, commits, &mut state, &mut offset, now))?;
 
         if let Event::Key(key) = event::read()?
             && let KeyCode::Char(character) = key.code
@@ -57,7 +68,9 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
 
-    match ratatui::run(|terminal| event_loop(terminal, &commits)) {
+    let now = clock_seconds();
+
+    match ratatui::run(|terminal| event_loop(terminal, &commits, now)) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("{error}");

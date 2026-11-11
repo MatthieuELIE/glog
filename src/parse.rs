@@ -18,7 +18,7 @@ pub struct Commit {
     pub hash: String,
     pub parents: Vec<String>,
     pub refs: Vec<Ref>,
-    pub date: String,
+    pub time: i64,
     pub author: String,
     pub subject: String,
 }
@@ -73,7 +73,7 @@ fn parse_commit(line: &str) -> Option<Commit> {
     let hash = fields.next()?;
     let parents = fields.next()?;
     let refs = fields.next()?;
-    let date = fields.next()?;
+    let time = fields.next()?;
     let author = fields.next()?;
     let subject = fields.next()?;
 
@@ -81,7 +81,7 @@ fn parse_commit(line: &str) -> Option<Commit> {
         hash: hash.to_string(),
         parents: parents.split_whitespace().map(str::to_string).collect(),
         refs: parse_refs(refs),
-        date: date.to_string(),
+        time: time.parse().unwrap_or(0),
         author: author.to_string(),
         subject: subject.to_string(),
     })
