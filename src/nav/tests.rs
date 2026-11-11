@@ -1,6 +1,6 @@
 use ratatui::crossterm::event::KeyModifiers;
 
-use crate::nav::{View, fit, press, quits};
+use crate::nav::{Loading, View, fit, list_height, press, quits};
 
 #[test]
 fn q_quits() {
@@ -60,4 +60,12 @@ fn press_moves_the_selection_and_the_offset_within_their_edges() {
     assert_eq!(press(view(0, 0, 0), 'h', 3), view(0, 0, 0));
     assert_eq!(press(view(0, 0, 4), 'l', 3), view(0, 0, 5));
     assert_eq!(press(view(0, 0, 4), 'h', 3), view(0, 0, 3));
+}
+
+#[test]
+fn the_list_loses_its_last_row_to_the_status_line_unless_loading_is_done() {
+    assert_eq!(list_height(50, &Loading::Reading), 49);
+    assert_eq!(list_height(50, &Loading::Failed(String::new())), 49);
+    assert_eq!(list_height(50, &Loading::Done), 50);
+    assert_eq!(list_height(0, &Loading::Reading), 0);
 }

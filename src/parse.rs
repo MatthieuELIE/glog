@@ -68,7 +68,7 @@ fn parse_refs(refs: &str) -> Vec<Ref> {
     parsed
 }
 
-fn parse_commit(line: &str) -> Option<Commit> {
+pub fn parse_commit(line: &str) -> Option<Commit> {
     let mut fields = line.split(FIELD_SEPARATOR);
     let hash = fields.next()?;
     let parents = fields.next()?;

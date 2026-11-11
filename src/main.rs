@@ -1,22 +1,25 @@
 use std::{
-    io,
+    io::{self, IsTerminal, Write},
     path::Path,
     process::ExitCode,
-    time::{SystemTime, UNIX_EPOCH},
+    sync::mpsc::{RecvTimeoutError, TryRecvError},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use clap::Parser;
 use glog::{
     draw::{max_offset, render},
     history::History,
-    nav::{self, View, fit, press},
-    parse::parse,
-    read::read_log,
+    nav::{self, Loading, View, fit, list_height, press},
+    read::{Loaded, Reader, start},
 };
 use ratatui::{
     DefaultTerminal,
     crossterm::event::{self, Event, KeyCode},
 };
+
+const SLOW_START: Duration = Duration::from_millis(500);
+const POLL: Duration = Duration::from_millis(50);
 
 fn clock_seconds() -> i64 {
     SystemTime::now()
@@ -24,20 +27,49 @@ fn clock_seconds() -> i64 {
         .map_or(0, |elapsed| i64::try_from(elapsed.as_secs()).unwrap_or(i64::MAX))
 }
 
-fn event_loop(terminal: &mut DefaultTerminal, history: &History, now: i64) -> io::Result<()> {
+fn drain(reader: &Reader, history: &mut History, loading: Loading) -> Loading {
+    let mut loading = loading;
+
+    while matches!(loading, Loading::Reading) {
+        match reader.events.try_recv() {
+            Ok(Loaded::Commits(commits)) => commits.into_iter().for_each(|commit| history.push(commit)),
+            Ok(Loaded::Done) => loading = Loading::Done,
+            Ok(Loaded::Failed(message)) => loading = Loading::Failed(message),
+            Err(TryRecvError::Empty) => break,
+            Err(TryRecvError::Disconnected) => loading = Loading::Failed("git stopped unexpectedly".to_string()),
+        }
+    }
+
+    loading
+}
+
+fn key_pressed(loading: &Loading) -> io::Result<Option<event::KeyEvent>> {
+    if matches!(loading, Loading::Reading) && !event::poll(POLL)? {
+        return Ok(None);
+    }
+
+    match event::read()? {
+        Event::Key(key) => Ok(Some(key)),
+        _ => Ok(None),
+    }
+}
+
+fn event_loop(terminal: &mut DefaultTerminal, reader: &Reader, history: &mut History, now: i64) -> io::Result<()> {
     let mut view = View::default();
+    let mut loading = Loading::Reading;
 
     loop {
+        loading = drain(reader, history, loading);
         let size = terminal.size()?;
         view = fit(
             view,
             history.len(),
-            usize::from(size.height),
+            list_height(usize::from(size.height), &loading),
             max_offset(history.max_lanes(), usize::from(size.width)),
         );
-        terminal.draw(|frame| render(frame, history, view, now))?;
+        terminal.draw(|frame| render(frame, history, view, &loading, now))?;
 
-        if let Event::Key(key) = event::read()?
+        if let Some(key) = key_pressed(&loading)?
             && let KeyCode::Char(character) = key.code
         {
             if nav::quits(character, key.modifiers) {
@@ -46,6 +78,26 @@ fn event_loop(terminal: &mut DefaultTerminal, history: &History, now: i64) -> io
             view = press(view, character, history.len());
         }
     }
+}
+
+fn first_event(reader: &Reader) -> Loaded {
+    let waiting = io::stderr().is_terminal();
+    let event = match reader.events.recv_timeout(SLOW_START) {
+        Ok(event) => Ok(event),
+        Err(RecvTimeoutError::Timeout) => {
+            if waiting {
+                eprint!("glog: reading history…");
+                let _ = io::stderr().flush();
+            }
+            reader.events.recv()
+        }
+        Err(RecvTimeoutError::Disconnected) => Err(std::sync::mpsc::RecvError),
+    };
+    if waiting {
+        eprint!("\r\x1b[2K");
+    }
+
+    event.unwrap_or_else(|_| Loaded::Failed("git stopped unexpectedly".to_string()))
 }
 
 #[derive(Parser)]
@@ -59,8 +111,8 @@ struct Cli {}
 fn main() -> ExitCode {
     Cli::parse();
 
-    let log = match read_log(Path::new(".")) {
-        Ok(log) => log,
+    let reader = match start(Path::new(".")) {
+        Ok(reader) => reader,
         Err(message) => {
             eprintln!("{message}");
             return ExitCode::FAILURE;
@@ -68,18 +120,23 @@ fn main() -> ExitCode {
     };
 
     let mut history = History::default();
-    for commit in parse(&log) {
-        history.push(commit);
-    }
-    drop(log);
-    if history.is_empty() {
-        eprintln!("glog: no commits yet");
-        return ExitCode::FAILURE;
+    match first_event(&reader) {
+        Loaded::Commits(commits) => commits.into_iter().for_each(|commit| history.push(commit)),
+        Loaded::Done => {
+            eprintln!("glog: no commits yet");
+            return ExitCode::FAILURE;
+        }
+        Loaded::Failed(message) => {
+            eprintln!("{message}");
+            return ExitCode::FAILURE;
+        }
     }
 
     let now = clock_seconds();
+    let result = ratatui::run(|terminal| event_loop(terminal, &reader, &mut history, now));
+    reader.stop();
 
-    match ratatui::run(|terminal| event_loop(terminal, &history, now)) {
+    match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("{error}");

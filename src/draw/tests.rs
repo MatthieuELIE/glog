@@ -3,7 +3,7 @@ use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, style::Color};
 use crate::{
     draw::{max_offset, render},
     history::History,
-    nav::{View, fit, press},
+    nav::{Loading, View, fit, press},
     parse::parse,
 };
 
@@ -19,6 +19,10 @@ fn draw(log: &str, width: u16, height: u16) -> Buffer {
 }
 
 fn draw_after(log: &str, width: u16, height: u16, keys: &str) -> Buffer {
+    draw_loading(log, width, height, keys, &Loading::Done)
+}
+
+fn draw_loading(log: &str, width: u16, height: u16, keys: &str, loading: &Loading) -> Buffer {
     let mut history = History::default();
     for commit in parse(log) {
         history.push(commit);
@@ -32,7 +36,7 @@ fn draw_after(log: &str, width: u16, height: u16, keys: &str) -> Buffer {
             usize::from(height),
             max_offset(history.max_lanes(), usize::from(width)),
         );
-        terminal.draw(|frame| render(frame, &history, view, NOW)).unwrap();
+        terminal.draw(|frame| render(frame, &history, view, loading, NOW)).unwrap();
 
         view
     };
@@ -771,4 +775,73 @@ fn draws_a_history_of_three_thousand_commits_from_its_last_row() {
     assert_eq!(graph(&buffer, 49, 1), "●");
     assert!(row_text(&buffer, 49).contains("commit 2999"));
     assert!(row_text(&buffer, 0).contains("commit 2950"));
+}
+
+fn three_commits() -> String {
+    [
+        line("ccccccc", "bbbbbbb", "", "1913600", "Ann", "third"),
+        line("bbbbbbb", "aaaaaaa", "", "1913600", "Ann", "second"),
+        line("aaaaaaa", "", "", "1913600", "Ann", "first"),
+    ]
+    .join("\n")
+}
+
+#[test]
+fn shows_the_loading_count_in_overlay_on_the_last_row_while_reading() {
+    let buffer = draw_loading(&three_commits(), 60, 4, "", &Loading::Reading);
+
+    assert_eq!(row_text(&buffer, 3).trim_end(), "loading… 3 commits");
+    assert_eq!(buffer[(0, 3)].fg, Color::Rgb(0x6c, 0x70, 0x86));
+}
+
+#[test]
+fn gives_the_last_row_to_the_status_line_while_reading() {
+    let buffer = draw_loading(&three_commits(), 60, 3, "", &Loading::Reading);
+
+    assert!(row_text(&buffer, 1).contains("second"));
+    assert!(row_text(&buffer, 2).starts_with("loading…"));
+}
+
+#[test]
+fn shows_a_commit_on_the_last_row_once_done() {
+    let buffer = draw_loading(&three_commits(), 60, 3, "", &Loading::Done);
+
+    assert!(row_text(&buffer, 2).contains("first"));
+}
+
+#[test]
+fn shows_the_first_line_of_the_failure_in_red_and_keeps_the_commits() {
+    let failed = Loading::Failed("fatal: bad object\nsecond line".to_string());
+
+    let buffer = draw_loading(&three_commits(), 60, 4, "", &failed);
+
+    assert_eq!(row_text(&buffer, 3).trim_end(), "fatal: bad object");
+    assert_eq!(buffer[(0, 3)].fg, Color::Rgb(0xf3, 0x8b, 0xa8));
+    assert!(row_text(&buffer, 0).contains("third"));
+}
+
+fn selected_row(buffer: &Buffer) -> Option<u16> {
+    (0..buffer.area.height).find(|&y| buffer[(0, y)].bg == Color::Rgb(0x45, 0x47, 0x5a))
+}
+
+#[test]
+fn keeps_the_selection_on_the_same_commit_when_more_commits_arrive() {
+    let log = three_commits();
+    let mut history = History::default();
+    let mut commits = parse(&log).into_iter();
+    history.push(commits.next().unwrap());
+    history.push(commits.next().unwrap());
+    let mut terminal = Terminal::new(TestBackend::new(60, 5)).unwrap();
+    let view = fit(press(View::default(), 'j', history.len()), history.len(), 5, 0);
+    terminal.draw(|frame| render(frame, &history, view, &Loading::Reading, NOW)).unwrap();
+    let before = selected_row(terminal.backend().buffer());
+
+    history.push(commits.next().unwrap());
+    let view = fit(view, history.len(), 5, 0);
+    terminal.draw(|frame| render(frame, &history, view, &Loading::Reading, NOW)).unwrap();
+    let buffer = terminal.backend().buffer();
+
+    assert_eq!(before, Some(1));
+    assert_eq!(selected_row(buffer), before);
+    assert!(row_text(buffer, 1).contains("second"));
 }

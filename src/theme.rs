@@ -7,6 +7,7 @@ pub const LAVENDER: Color = Color::Rgb(0xb4, 0xbe, 0xfe);
 pub const OVERLAY: Color = Color::Rgb(0x6c, 0x70, 0x86);
 pub const SURFACE1: Color = Color::Rgb(0x45, 0x47, 0x5a);
 pub const YELLOW: Color = Color::Rgb(0xf9, 0xe2, 0xaf);
+pub const RED: Color = Color::Rgb(0xf3, 0x8b, 0xa8);
 
 pub const LANE_COLORS: [Color; 8] = [
     MAUVE,
@@ -16,5 +17,5 @@ pub const LANE_COLORS: [Color; 8] = [
     Color::Rgb(0xf5, 0xc2, 0xe7),
     Color::Rgb(0x94, 0xe2, 0xd5),
     YELLOW,
-    Color::Rgb(0xf3, 0x8b, 0xa8),
+    RED,
 ];

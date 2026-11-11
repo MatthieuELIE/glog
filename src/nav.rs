@@ -7,6 +7,20 @@ pub struct View {
     pub offset: usize,
 }
 
+pub enum Loading {
+    Reading,
+    Done,
+    Failed(String),
+}
+
+pub fn list_height(terminal_height: usize, loading: &Loading) -> usize {
+    if matches!(loading, Loading::Done) {
+        return terminal_height;
+    }
+
+    terminal_height.saturating_sub(1)
+}
+
 pub fn press(view: View, key: char, len: usize) -> View {
     if key == 'j' {
         return View {
