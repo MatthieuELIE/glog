@@ -3,6 +3,24 @@
 Notable changes to `glog`, most recent first.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.2] - 2026-11-11
+
+### Added
+
+- `g` selects the first commit and `G` the last one loaded, `Ctrl+d` and `Ctrl+u` move half a page down and up.
+- The view opens while the history is still loading, with a status line on the last row that counts the commits read, or shows git's error if it fails partway.
+- `glog: reading history…` on stderr when the first commits take more than half a second to arrive.
+
+### Changed
+
+- The date is a compact relative time on four cells (`now`, `42m`, `5h`, `12d`, `3mo`, `2y`) instead of git's `3 days ago`.
+- The author column has a fixed width of twenty cells, and a longer name ends with `…`.
+- A large history opens much faster and uses far less memory: on 1.1 million commits, the first frame comes in under 2 s instead of over 10 s, a key answers in about 2 ms instead of seconds, and memory stays under 200 MB instead of over 1 GB.
+
+### Fixed
+
+- Two commits sharing their first seven hash characters are no longer taken for the same commit, which could link a commit to the wrong parent.
+
 ## [0.1.1] - 2026-11-09
 
 ### Added
@@ -27,5 +45,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - A one-line error on stderr outside a repository (git's own message), in a repository with no commit, and for an unknown argument.
 - `glog --version` prints the version, and `glog --help` the usage and the keys, from any folder.
 
+[0.1.2]: https://github.com/MatthieuELIE/glog/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/MatthieuELIE/glog/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/MatthieuELIE/glog/releases/tag/v0.1.0
