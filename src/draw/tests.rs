@@ -39,7 +39,7 @@ fn shows_one_row_per_commit_newest_first() {
     ]
     .join("\n");
 
-    let buffer = draw(&log, 40, 3);
+    let buffer = draw(&log, 60, 3);
 
     assert!(row_text(&buffer, 0).contains("second"));
     assert!(row_text(&buffer, 1).contains("first"));
@@ -58,17 +58,26 @@ fn two_commits() -> String {
 fn aligns_graph_hash_date_author_and_message_columns() {
     let buffer = draw(&two_commits(), 60, 2);
 
-    assert_eq!(row_text(&buffer, 0).trim_end(), "● 1234567 3d   Ann         short subject");
-    assert_eq!(row_text(&buffer, 1).trim_end(), "● fedcba0 14d  Bartholomew older");
+    assert_eq!(row_text(&buffer, 0).trim_end(), "● 1234567 3d   Ann                  short subject");
+    assert_eq!(row_text(&buffer, 1).trim_end(), "● fedcba0 14d  Bartholomew          older");
+}
+
+#[test]
+fn truncates_an_author_wider_than_twenty_cells_with_an_ellipsis() {
+    let log = line("1234567890abcdef", "", "", "1913600", "Bartholomew Maximilian Fitzgerald", "subject");
+
+    let buffer = draw(&log, 60, 1);
+
+    assert_eq!(row_text(&buffer, 0).trim_end(), "● 1234567 1d   Bartholomew Maximil… subject");
 }
 
 #[test]
 fn shows_the_date_on_four_cells_whatever_the_loaded_commits() {
     let log = line("1234567890abcdef", "", "", "1999990", "Ann", "short subject");
 
-    let buffer = draw(&log, 40, 1);
+    let buffer = draw(&log, 60, 1);
 
-    assert_eq!(row_text(&buffer, 0).trim_end(), "● 1234567 now  Ann short subject");
+    assert_eq!(row_text(&buffer, 0).trim_end(), "● 1234567 now  Ann                  short subject");
 }
 
 #[test]
@@ -105,9 +114,9 @@ fn aligns_columns_by_display_width_for_wide_characters() {
 
 #[test]
 fn truncates_the_message_first_in_a_narrow_terminal() {
-    let buffer = draw(&two_commits(), 31, 2);
+    let buffer = draw(&two_commits(), 40, 2);
 
-    assert_eq!(row_text(&buffer, 0), "● 1234567 3d   Ann         sho…");
+    assert_eq!(row_text(&buffer, 0), "● 1234567 3d   Ann                  sho…");
 }
 
 #[test]
@@ -116,8 +125,8 @@ fn colours_hash_in_overlay_and_text_in_text_and_subtext() {
 
     assert_eq!(buffer[(2, 0)].fg, Color::Rgb(0x6c, 0x70, 0x86));
     assert_eq!(buffer[(10, 0)].fg, Color::Rgb(0xa6, 0xad, 0xc8));
-    assert_eq!(buffer[(34, 0)].fg, Color::Rgb(0xcd, 0xd6, 0xf4));
-    assert_eq!(buffer[(34, 1)].bg, Color::Reset);
+    assert_eq!(buffer[(36, 0)].fg, Color::Rgb(0xcd, 0xd6, 0xf4));
+    assert_eq!(buffer[(36, 1)].bg, Color::Reset);
 }
 
 #[test]
@@ -158,7 +167,7 @@ fn j_moves_the_highlight_down_one_commit() {
 
 #[test]
 fn j_scrolls_the_view_to_keep_the_selection_visible() {
-    let buffer = draw_after(&five_commits(), 40, 3, "jjjj");
+    let buffer = draw_after(&five_commits(), 60, 3, "jjjj");
 
     assert!(row_text(&buffer, 0).contains("commit c"));
     assert!(row_text(&buffer, 2).contains("commit a"));
@@ -182,7 +191,7 @@ fn k_moves_the_highlight_up_one_commit() {
 
 #[test]
 fn k_scrolls_the_view_back_up_to_keep_the_selection_visible() {
-    let buffer = draw_after(&five_commits(), 40, 3, "jjjjkkk");
+    let buffer = draw_after(&five_commits(), 60, 3, "jjjjkkk");
 
     assert!(row_text(&buffer, 0).contains("commit d"));
     assert_eq!(highlighted_rows(&buffer), vec![0]);
@@ -382,7 +391,7 @@ fn shows_the_refs_of_a_commit_as_badges_before_its_message() {
 
     assert_eq!(
         row_text(&buffer, 0).trim_end(),
-        "○ aaaaaaa 1d   Ann [HEAD] [main] [origin/main] [◆ v1.0] subject"
+        "○ aaaaaaa 1d   Ann                  [HEAD] [main] [origin/main] [◆ v1.0] subject"
     );
 }
 
@@ -449,9 +458,9 @@ fn leaves_the_terminal_background_unpainted_under_badges() {
 
 #[test]
 fn truncates_the_message_after_the_badges_in_a_narrow_terminal() {
-    let buffer = draw(&badge_log("refs/heads/main"), 31, 1);
+    let buffer = draw(&badge_log("refs/heads/main"), 48, 1);
 
-    assert_eq!(row_text(&buffer, 0), "● aaaaaaa 1d   Ann [main] subj…");
+    assert_eq!(row_text(&buffer, 0), "● aaaaaaa 1d   Ann                  [main] subj…");
 }
 
 #[test]
@@ -497,7 +506,7 @@ fn orders_badges_head_then_local_then_remote_then_tags_keeping_git_order_within_
 
     assert_eq!(
         row_text(&buffer, 0).trim_end(),
-        "○ aaaaaaa 1d   Ann [HEAD] [zeta] [feature/a] [origin/feature/a] [◆ v1] subject"
+        "○ aaaaaaa 1d   Ann                  [HEAD] [zeta] [feature/a] [origin/feature/a] [◆ v1] subject"
     );
 }
 
