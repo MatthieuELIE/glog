@@ -1,6 +1,6 @@
 use ratatui::{
     Frame,
-    style::{Modifier, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{List, ListState},
 };
@@ -8,13 +8,13 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
     date::relative,
-    lanes::{GraphRow, place},
+    history::{History, SHORT_HASH_WIDTH},
+    lanes::{Cell, advance, cells},
     nav::View,
-    parse::{Commit, Ref, RefKind},
+    parse::{Ref, RefKind},
     theme::{LANE_COLORS, LAVENDER, OVERLAY, SUBTEXT, SURFACE1, TEXT, YELLOW},
 };
 
-const HASH_WIDTH: usize = 7;
 const DATE_WIDTH: usize = 4;
 const AUTHOR_WIDTH: usize = 20;
 const SEPARATORS_WIDTH: usize = 4;
@@ -49,15 +49,17 @@ fn truncate(text: &str, width: usize) -> String {
     kept
 }
 
-pub fn graph_width(commits: &[Commit]) -> usize {
-    place(commits).first().map_or(0, |row| row.cells.len())
+fn graph_width(max_lanes: usize) -> usize {
+    (CELLS_PER_LANE * max_lanes).saturating_sub(1)
 }
 
 fn window_width(graph_width: usize, terminal_width: usize) -> usize {
     graph_width.min(terminal_width / 3)
 }
 
-pub fn max_offset(graph_width: usize, terminal_width: usize) -> usize {
+pub fn max_offset(max_lanes: usize, terminal_width: usize) -> usize {
+    let graph_width = graph_width(max_lanes);
+
     graph_width
         .saturating_sub(window_width(graph_width, terminal_width))
         .div_ceil(CELLS_PER_LANE)
@@ -67,14 +69,15 @@ fn ellipsis_span() -> Span<'static> {
     Span::styled(ELLIPSIS.to_string(), Style::new().fg(OVERLAY))
 }
 
-fn graph_spans(row: &GraphRow, offset: usize, window_width: usize) -> Vec<Span<'static>> {
+fn lane_color(color: u32) -> Color {
+    LANE_COLORS[color as usize % LANE_COLORS.len()]
+}
+
+fn graph_spans(cells: &[Cell], offset: usize, graph_width: usize, window_width: usize) -> Vec<Span<'static>> {
     let start = offset * CELLS_PER_LANE;
-    let mut spans: Vec<Span<'static>> = row
-        .cells
+    let mut spans: Vec<Span<'static>> = cells
         .iter()
-        .skip(start)
-        .take(window_width)
-        .map(|cell| Span::styled(cell.symbol.to_string(), Style::new().fg(LANE_COLORS[cell.color % LANE_COLORS.len()])))
+        .map(|cell| Span::styled(cell.symbol.to_string(), Style::new().fg(lane_color(cell.color))))
         .collect();
     if offset > 0
         && let Some(first) = spans.first_mut()
@@ -82,7 +85,7 @@ fn graph_spans(row: &GraphRow, offset: usize, window_width: usize) -> Vec<Span<'
         *first = ellipsis_span();
     }
 
-    if start + window_width < row.cells.len()
+    if start + window_width < graph_width
         && let Some(last) = spans.last_mut()
     {
         *last = ellipsis_span();
@@ -92,10 +95,10 @@ fn graph_spans(row: &GraphRow, offset: usize, window_width: usize) -> Vec<Span<'
     spans
 }
 
-fn badge_style(reference: &Ref, node_color: usize) -> Style {
+fn badge_style(reference: &Ref, node_color: u32) -> Style {
     match reference.kind {
         RefKind::Head => Style::new().fg(TEXT).add_modifier(Modifier::BOLD),
-        RefKind::Local => Style::new().fg(LANE_COLORS[node_color % LANE_COLORS.len()]),
+        RefKind::Local => Style::new().fg(lane_color(node_color)),
         RefKind::Remote => Style::new().fg(OVERLAY),
         RefKind::Tag => Style::new().fg(YELLOW),
     }
@@ -108,56 +111,56 @@ fn badge_label(reference: &Ref) -> String {
     }
 }
 
-fn badge_spans(commit: &Commit, row: &GraphRow) -> Vec<Span<'static>> {
-    commit
-        .refs
-        .iter()
-        .flat_map(|reference| {
-            [
-                Span::styled(badge_label(reference), badge_style(reference, row.node_color)),
-                Span::raw(" "),
-            ]
-        })
+fn badge_spans(refs: &[Ref], node_color: u32) -> Vec<Span<'static>> {
+    refs.iter()
+        .flat_map(|reference| [Span::styled(badge_label(reference), badge_style(reference, node_color)), Span::raw(" ")])
         .collect()
 }
 
-fn commit_line(commit: &Commit, row: &GraphRow, offset: usize, window_width: usize, now: i64, message_width: usize) -> Line<'static> {
-    let mut spans = graph_spans(row, offset, window_width);
+fn commit_line(history: &History, row: usize, graph: Vec<Span<'static>>, node_color: u32, now: i64, message_width: usize) -> Line<'static> {
+    let mut spans = graph;
     spans.extend([
         Span::raw(" "),
-        Span::styled(commit.hash.chars().take(HASH_WIDTH).collect::<String>(), Style::new().fg(OVERLAY)),
+        Span::styled(history.short_hash(row).to_string(), Style::new().fg(OVERLAY)),
         Span::raw(" "),
-        Span::styled(pad(&relative(now, commit.time), DATE_WIDTH), Style::new().fg(SUBTEXT)),
+        Span::styled(pad(&relative(now, history.time(row)), DATE_WIDTH), Style::new().fg(SUBTEXT)),
         Span::raw(" "),
-        Span::styled(pad(&truncate(&commit.author, AUTHOR_WIDTH), AUTHOR_WIDTH), Style::new().fg(LAVENDER)),
+        Span::styled(pad(&truncate(history.author(row), AUTHOR_WIDTH), AUTHOR_WIDTH), Style::new().fg(LAVENDER)),
         Span::raw(" "),
     ]);
-    let badges = badge_spans(commit, row);
+    let badges = badge_spans(history.refs(row), node_color);
     let badges_width: usize = badges.iter().map(Span::width).sum();
     spans.extend(badges);
     spans.push(Span::styled(
-        truncate(&commit.subject, message_width.saturating_sub(badges_width)),
+        truncate(history.subject(row), message_width.saturating_sub(badges_width)),
         Style::new().fg(TEXT),
     ));
 
     Line::from(spans)
 }
 
-pub fn render(frame: &mut Frame, commits: &[Commit], view: View, now: i64) {
-    let rows = place(commits);
-    let graph_width = rows.first().map_or(0, |row| row.cells.len());
+fn is_head(refs: &[Ref]) -> bool {
+    refs.iter().any(|reference| reference.kind == RefKind::Head)
+}
+
+pub fn render(frame: &mut Frame, history: &History, view: View, now: i64) {
+    let graph_width = graph_width(history.max_lanes());
     let terminal_width = usize::from(frame.area().width);
     let window_width = window_width(graph_width, terminal_width);
-    let fixed_width = window_width + HASH_WIDTH + DATE_WIDTH + AUTHOR_WIDTH + SEPARATORS_WIDTH;
+    let fixed_width = window_width + SHORT_HASH_WIDTH + DATE_WIDTH + AUTHOR_WIDTH + SEPARATORS_WIDTH;
     let message_width = terminal_width.saturating_sub(fixed_width);
+    let visible = view.top..history.len().min(view.top + usize::from(frame.area().height));
+    let drawn_cells = window_width.min(graph_width.saturating_sub(view.offset * CELLS_PER_LANE));
 
-    let lines: Vec<Line> = commits
-        .iter()
-        .zip(&rows)
-        .skip(view.top)
-        .take(usize::from(frame.area().height))
-        .map(|(commit, row)| commit_line(commit, row, view.offset, window_width, now, message_width))
-        .collect();
+    let mut lanes = history.lanes_before(view.top);
+    let mut lines = Vec::new();
+    for row in visible {
+        let lane_row = history.lane_row(row);
+        let cells = cells(&lanes, &lane_row, is_head(history.refs(row)), view.offset, drawn_cells);
+        let graph = graph_spans(&cells, view.offset, graph_width, window_width);
+        lines.push(commit_line(history, row, graph, lane_row.color, now, message_width));
+        lanes = advance(lanes, &lane_row);
+    }
 
     let list = List::new(lines).highlight_style(Style::new().bg(SURFACE1));
     let mut state = ListState::default().with_selected(Some(view.selected.saturating_sub(view.top)));

@@ -1,7 +1,8 @@
 use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, style::Color};
 
 use crate::{
-    draw::{graph_width, max_offset, render},
+    draw::{max_offset, render},
+    history::History,
     nav::{View, fit, press},
     parse::parse,
 };
@@ -18,19 +19,26 @@ fn draw(log: &str, width: u16, height: u16) -> Buffer {
 }
 
 fn draw_after(log: &str, width: u16, height: u16, keys: &str) -> Buffer {
-    let commits = parse(log);
-    let graph_width = graph_width(&commits);
+    let mut history = History::default();
+    for commit in parse(log) {
+        history.push(commit);
+    }
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
     let mut view = View::default();
     let mut frame_after = |view: View| {
-        let view = fit(view, commits.len(), usize::from(height), max_offset(graph_width, usize::from(width)));
-        terminal.draw(|frame| render(frame, &commits, view, NOW)).unwrap();
+        let view = fit(
+            view,
+            history.len(),
+            usize::from(height),
+            max_offset(history.max_lanes(), usize::from(width)),
+        );
+        terminal.draw(|frame| render(frame, &history, view, NOW)).unwrap();
 
         view
     };
     view = frame_after(view);
     for key in keys.chars() {
-        view = frame_after(press(view, key, commits.len()));
+        view = frame_after(press(view, key, history.len()));
     }
 
     terminal.backend().buffer().clone()
@@ -647,4 +655,120 @@ fn h_and_l_keep_the_selection_and_j_and_k_keep_the_shift() {
     assert_eq!(highlighted_rows(&draw_after(&log, 18, 7, "jjlh")), vec![2]);
     assert_eq!(draw_after(&log, 18, 7, "jjll"), draw_after(&log, 18, 7, "lljj"));
     assert_eq!(draw_after(&log, 18, 7, "lljk"), draw_after(&log, 18, 7, "ll"));
+}
+
+fn parent_hash(n: usize, count: usize, last_parent: &str) -> String {
+    if n + 1 == count {
+        return last_parent.to_string();
+    }
+
+    format!("{:07x}", n + 1)
+}
+
+fn long_lane_log(mains: usize) -> String {
+    let sides = [
+        line("5100000", "r00t001", "", "1913600", "Ann", "side one"),
+        line("5200000", "r00t002", "", "1913600", "Ann", "side two"),
+    ];
+    let chain = (0..mains).map(|n| {
+        line(
+            &format!("{n:07x}"),
+            &parent_hash(n, mains, "r00t001"),
+            "",
+            "1913600",
+            "Ann",
+            &format!("main {n}"),
+        )
+    });
+
+    sides
+        .into_iter()
+        .chain(chain)
+        .chain([
+            line("r00t001", "r00t002", "", "1913600", "Ann", "root one"),
+            line("r00t002", "", "", "1913600", "Ann", "root two"),
+        ])
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[test]
+fn keeps_two_lanes_open_from_the_first_row_to_the_last_across_the_resume_points() {
+    let log = long_lane_log(1_100);
+
+    for selected in [1_023, 1_024, 1_025] {
+        let buffer = draw_after(&log, 60, 1, &"j".repeat(selected));
+
+        assert_eq!(graph(&buffer, 0, 5), "│ │ ●", "selected {selected}");
+        assert_eq!((buffer[(0, 0)].fg, buffer[(2, 0)].fg, buffer[(4, 0)].fg), (MAUVE, BLUE, GREEN));
+    }
+}
+
+#[test]
+fn draws_a_junction_across_a_free_column() {
+    let log = [
+        line("aaaaaaa", "ppppppp", "", "1913600", "Ann", "a"),
+        line("bbbbbbb", "qqqqqqq", "", "1913600", "Ann", "b"),
+        line("ccccccc", "ppppppp", "", "1913600", "Ann", "c"),
+        line("qqqqqqq", "", "", "1913600", "Ann", "q"),
+        line("ppppppp", "", "", "1913600", "Ann", "p"),
+    ]
+    .join("\n");
+
+    let buffer = draw(&log, 60, 5);
+
+    assert_eq!(graph(&buffer, 4, 5), "●───╯");
+}
+
+#[test]
+fn leaves_a_free_column_left_of_a_junction_blank() {
+    let log = [
+        line("aaaaaaa", "xxxxxxx", "", "1913600", "Ann", "a"),
+        line("bbbbbbb", "yyyyyyy", "", "1913600", "Ann", "b"),
+        line("ccccccc", "yyyyyyy", "", "1913600", "Ann", "c"),
+        line("xxxxxxx", "", "", "1913600", "Ann", "x"),
+        line("yyyyyyy", "", "", "1913600", "Ann", "y"),
+    ]
+    .join("\n");
+
+    let buffer = draw(&log, 60, 5);
+
+    assert_eq!(graph(&buffer, 4, 5), "  ●─╯");
+}
+
+#[test]
+fn replaces_the_last_cell_with_an_ellipsis_when_two_cells_are_hidden() {
+    let buffer = draw(&open_lanes_log(7), 33, 1);
+
+    assert_eq!(graph(&buffer, 0, 11), "●─╮─╮─╮─╮─…");
+}
+
+#[test]
+fn leaves_the_cells_past_the_graph_unpainted_at_the_right_edge() {
+    let buffer = draw_after(&many_branches_log(6), 18, 7, "lll");
+
+    assert_eq!(buffer[(5, 4)].fg, Color::Reset);
+}
+
+#[test]
+fn draws_a_history_of_three_thousand_commits_from_its_last_row() {
+    let log = (0..3_000)
+        .map(|n| {
+            line(
+                &format!("{n:07x}"),
+                &parent_hash(n, 3_000, ""),
+                "",
+                "1913600",
+                "Ann",
+                &format!("commit {n}"),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let buffer = draw_after(&log, 60, 50, &"j".repeat(2_999));
+
+    assert_eq!(graph(&buffer, 49, 1), "●");
+    assert!(row_text(&buffer, 49).contains("commit 2999"));
+    assert!(row_text(&buffer, 0).contains("commit 2950"));
 }
