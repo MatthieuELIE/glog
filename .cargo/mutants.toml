@@ -1,8 +1,12 @@
 exclude_re = [
     # event_loop reads key events from the terminal through crossterm: neither seam reaches it, since the Seam 2 tests run the binary without a tty.
-    'src/main\.rs:28:5: replace event_loop -> io::Result<\(\)> with Ok\(\(\)\)',
+    'src/main\.rs:58:5: replace event_loop -> io::Result<\(\)> with Ok\(\(\)\)',
+    # key_pressed polls and reads key events from the terminal through crossterm, which no seam reaches without a tty.
+    'src/main\.rs:\d+:\d+: .*key_pressed',
+    # git fails without a word only when a signal kills it, which no real repository made by a test provokes.
+    'src/read\.rs:\d+:\d+: replace match guard message\.trim\(\)\.is_empty\(\) with false in finish',
     # With a width of 0 the extra ellipsis lands past the end of the area and ratatui clips it, so nothing shown changes.
-    'src/draw\.rs:45:14: replace > with >= in truncate',
+    'src/draw\.rs:46:14: replace > with >= in truncate',
     # An end never sits in the node's column: a joined lane lies right of the node and an opened lane takes a free column, never the node's.
     'src/lanes\.rs:165:30: replace < with <= in end_symbol',
     # A cell in the column of the node or of an end is settled by an earlier branch of cell_at, so the bounds of the span are never tested for equality.

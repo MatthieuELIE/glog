@@ -1,8 +1,9 @@
 use ratatui::{
     Frame,
+    layout::{Constraint, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{List, ListState},
+    widgets::{List, ListState, Paragraph},
 };
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
@@ -10,9 +11,9 @@ use crate::{
     date::relative,
     history::{History, SHORT_HASH_WIDTH},
     lanes::{Cell, advance, cells},
-    nav::View,
+    nav::{Loading, View},
     parse::{Ref, RefKind},
-    theme::{LANE_COLORS, LAVENDER, OVERLAY, SUBTEXT, SURFACE1, TEXT, YELLOW},
+    theme::{LANE_COLORS, LAVENDER, OVERLAY, RED, SUBTEXT, SURFACE1, TEXT, YELLOW},
 };
 
 const DATE_WIDTH: usize = 4;
@@ -143,13 +144,29 @@ fn is_head(refs: &[Ref]) -> bool {
     refs.iter().any(|reference| reference.kind == RefKind::Head)
 }
 
-pub fn render(frame: &mut Frame, history: &History, view: View, now: i64) {
+fn status_line(history: &History, loading: &Loading) -> Option<Span<'static>> {
+    match loading {
+        Loading::Done => None,
+        Loading::Reading => Some(Span::styled(format!("loading… {} commits", history.len()), Style::new().fg(OVERLAY))),
+        Loading::Failed(message) => Some(Span::styled(message.lines().next().unwrap_or_default().to_string(), Style::new().fg(RED))),
+    }
+}
+
+pub fn render(frame: &mut Frame, history: &History, view: View, loading: &Loading, now: i64) {
+    let full = frame.area();
+    let mut list_area = full;
+    if let Some(span) = status_line(history, loading) {
+        let [list, status] = Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]).areas(full);
+        list_area = list;
+        frame.render_widget(Paragraph::new(Line::from(span)), status);
+    }
+
     let graph_width = graph_width(history.max_lanes());
-    let terminal_width = usize::from(frame.area().width);
+    let terminal_width = usize::from(full.width);
     let window_width = window_width(graph_width, terminal_width);
     let fixed_width = window_width + SHORT_HASH_WIDTH + DATE_WIDTH + AUTHOR_WIDTH + SEPARATORS_WIDTH;
     let message_width = terminal_width.saturating_sub(fixed_width);
-    let visible = view.top..history.len().min(view.top + usize::from(frame.area().height));
+    let visible = view.top..history.len().min(view.top + usize::from(list_area.height));
     let drawn_cells = window_width.min(graph_width.saturating_sub(view.offset * CELLS_PER_LANE));
 
     let mut lanes = history.lanes_before(view.top);
@@ -165,7 +182,7 @@ pub fn render(frame: &mut Frame, history: &History, view: View, now: i64) {
     let list = List::new(lines).highlight_style(Style::new().bg(SURFACE1));
     let mut state = ListState::default().with_selected(Some(view.selected.saturating_sub(view.top)));
 
-    frame.render_stateful_widget(list, frame.area(), &mut state);
+    frame.render_stateful_widget(list, list_area, &mut state);
 }
 
 #[cfg(test)]
