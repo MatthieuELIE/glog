@@ -1,21 +1,52 @@
-use ratatui::{crossterm::event::KeyModifiers, widgets::ListState};
+use ratatui::crossterm::event::KeyModifiers;
 
-pub fn press(state: &mut ListState, offset: &mut usize, key: char, len: usize) {
-    let selected = state.selected().unwrap_or(0);
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct View {
+    pub selected: usize,
+    pub top: usize,
+    pub offset: usize,
+}
+
+pub fn press(view: View, key: char, len: usize) -> View {
     if key == 'j' {
-        state.select(Some((selected + 1).min(len.saturating_sub(1))));
+        return View {
+            selected: (view.selected + 1).min(len.saturating_sub(1)),
+            ..view
+        };
     }
 
     if key == 'k' {
-        state.select(Some(selected.saturating_sub(1)));
+        return View {
+            selected: view.selected.saturating_sub(1),
+            ..view
+        };
     }
 
     if key == 'l' {
-        *offset += 1;
+        return View {
+            offset: view.offset + 1,
+            ..view
+        };
     }
 
     if key == 'h' {
-        *offset = offset.saturating_sub(1);
+        return View {
+            offset: view.offset.saturating_sub(1),
+            ..view
+        };
+    }
+
+    view
+}
+
+pub fn fit(view: View, len: usize, height: usize, max_offset: usize) -> View {
+    let selected = view.selected.min(len.saturating_sub(1));
+    let top = view.top.min(selected).max((selected + 1).saturating_sub(height));
+
+    View {
+        selected,
+        top,
+        offset: view.offset.min(max_offset),
     }
 }
 

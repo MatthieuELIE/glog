@@ -9,6 +9,7 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 use crate::{
     date::relative,
     lanes::{GraphRow, place},
+    nav::View,
     parse::{Commit, Ref, RefKind},
     theme::{LANE_COLORS, LAVENDER, OVERLAY, SUBTEXT, SURFACE1, TEXT, YELLOW},
 };
@@ -48,8 +49,18 @@ fn truncate(text: &str, width: usize) -> String {
     kept
 }
 
-fn max_offset(graph_width: usize, window_width: usize) -> usize {
-    graph_width.saturating_sub(window_width).div_ceil(CELLS_PER_LANE)
+pub fn graph_width(commits: &[Commit]) -> usize {
+    place(commits).first().map_or(0, |row| row.cells.len())
+}
+
+fn window_width(graph_width: usize, terminal_width: usize) -> usize {
+    graph_width.min(terminal_width / 3)
+}
+
+pub fn max_offset(graph_width: usize, terminal_width: usize) -> usize {
+    graph_width
+        .saturating_sub(window_width(graph_width, terminal_width))
+        .div_ceil(CELLS_PER_LANE)
 }
 
 fn ellipsis_span() -> Span<'static> {
@@ -132,24 +143,26 @@ fn commit_line(commit: &Commit, row: &GraphRow, offset: usize, window_width: usi
     Line::from(spans)
 }
 
-pub fn render(frame: &mut Frame, commits: &[Commit], state: &mut ListState, offset: &mut usize, now: i64) {
+pub fn render(frame: &mut Frame, commits: &[Commit], view: View, now: i64) {
     let rows = place(commits);
     let graph_width = rows.first().map_or(0, |row| row.cells.len());
     let terminal_width = usize::from(frame.area().width);
-    let window_width = graph_width.min(terminal_width / 3);
-    *offset = (*offset).min(max_offset(graph_width, window_width));
+    let window_width = window_width(graph_width, terminal_width);
     let fixed_width = window_width + HASH_WIDTH + DATE_WIDTH + AUTHOR_WIDTH + SEPARATORS_WIDTH;
     let message_width = terminal_width.saturating_sub(fixed_width);
 
     let lines: Vec<Line> = commits
         .iter()
         .zip(&rows)
-        .map(|(commit, row)| commit_line(commit, row, *offset, window_width, now, message_width))
+        .skip(view.top)
+        .take(usize::from(frame.area().height))
+        .map(|(commit, row)| commit_line(commit, row, view.offset, window_width, now, message_width))
         .collect();
 
     let list = List::new(lines).highlight_style(Style::new().bg(SURFACE1));
+    let mut state = ListState::default().with_selected(Some(view.selected.saturating_sub(view.top)));
 
-    frame.render_stateful_widget(list, frame.area(), state);
+    frame.render_stateful_widget(list, frame.area(), &mut state);
 }
 
 #[cfg(test)]
