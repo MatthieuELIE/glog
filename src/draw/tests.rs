@@ -1,9 +1,9 @@
-use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, style::Color};
+use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, crossterm::event::KeyModifiers, style::Color};
 
 use crate::{
     draw::{max_offset, render},
     history::History,
-    nav::{Loading, View, fit, press},
+    nav::{Loading, View, fit, page, press},
     parse::parse,
 };
 
@@ -19,10 +19,22 @@ fn draw(log: &str, width: u16, height: u16) -> Buffer {
 }
 
 fn draw_after(log: &str, width: u16, height: u16, keys: &str) -> Buffer {
-    draw_loading(log, width, height, keys, &Loading::Done)
+    let keys: Vec<(char, KeyModifiers)> = keys.chars().map(|key| (key, KeyModifiers::NONE)).collect();
+
+    draw_chords(log, width, height, &keys)
+}
+
+fn draw_chords(log: &str, width: u16, height: u16, keys: &[(char, KeyModifiers)]) -> Buffer {
+    draw_loading_chords(log, width, height, keys, &Loading::Done)
 }
 
 fn draw_loading(log: &str, width: u16, height: u16, keys: &str, loading: &Loading) -> Buffer {
+    let keys: Vec<(char, KeyModifiers)> = keys.chars().map(|key| (key, KeyModifiers::NONE)).collect();
+
+    draw_loading_chords(log, width, height, &keys, loading)
+}
+
+fn draw_loading_chords(log: &str, width: u16, height: u16, keys: &[(char, KeyModifiers)], loading: &Loading) -> Buffer {
     let mut history = History::default();
     for commit in parse(log) {
         history.push(commit);
@@ -41,8 +53,9 @@ fn draw_loading(log: &str, width: u16, height: u16, keys: &str, loading: &Loadin
         view
     };
     view = frame_after(view);
-    for key in keys.chars() {
-        view = frame_after(press(view, key, history.len()));
+    let page = page(usize::from(height), loading);
+    for &(key, modifiers) in keys {
+        view = frame_after(press(view, key, modifiers, history.len(), page));
     }
 
     terminal.backend().buffer().clone()
@@ -224,6 +237,78 @@ fn k_on_the_first_commit_does_nothing() {
     let before_first = draw_after(&five_commits(), 40, 3, "kk");
 
     assert_eq!(at_first, before_first);
+}
+
+const CTRL: KeyModifiers = KeyModifiers::CONTROL;
+const NONE: KeyModifiers = KeyModifiers::NONE;
+
+fn twelve_commits() -> String {
+    ["l", "k", "j", "i", "h", "g", "f", "e", "d", "c", "b", "a"]
+        .map(|name| line(&name.repeat(8), "", "", "1913600", "Ann", &format!("commit {name}")))
+        .join("\n")
+}
+
+#[test]
+fn capital_g_highlights_the_last_commit() {
+    let buffer = draw_after(&twelve_commits(), 60, 4, "G");
+
+    assert!(row_text(&buffer, 3).contains("commit a"));
+    assert_eq!(highlighted_rows(&buffer), vec![3]);
+}
+
+#[test]
+fn g_after_capital_g_highlights_the_first_commit() {
+    let buffer = draw_after(&twelve_commits(), 60, 4, "Gg");
+
+    assert!(row_text(&buffer, 0).contains("commit l"));
+    assert_eq!(highlighted_rows(&buffer), vec![0]);
+}
+
+#[test]
+fn ctrl_d_moves_the_highlight_down_half_a_page() {
+    let buffer = draw_chords(&twelve_commits(), 60, 4, &[('d', CTRL)]);
+
+    assert_eq!(highlighted_rows(&buffer), vec![2]);
+    assert!(row_text(&buffer, 2).contains("commit j"));
+}
+
+#[test]
+fn ctrl_u_moves_the_highlight_up_half_a_page() {
+    let buffer = draw_chords(&twelve_commits(), 60, 4, &[('d', CTRL), ('d', CTRL), ('u', CTRL)]);
+
+    assert!(row_text(&buffer, highlighted_rows(&buffer)[0]).contains("commit j"));
+}
+
+#[test]
+fn ctrl_d_and_ctrl_u_stop_at_the_edges_of_the_list() {
+    let at_last = draw_after(&twelve_commits(), 60, 4, "G");
+    let past_last = draw_chords(&twelve_commits(), 60, 4, &[('G', NONE), ('d', CTRL), ('d', CTRL)]);
+    let at_first = draw_after(&twelve_commits(), 60, 4, "");
+    let before_first = draw_chords(&twelve_commits(), 60, 4, &[('u', CTRL)]);
+
+    assert_eq!(at_last, past_last);
+    assert_eq!(at_first, before_first);
+}
+
+#[test]
+fn g_on_the_first_commit_and_capital_g_on_the_last_do_nothing() {
+    assert_eq!(draw_after(&twelve_commits(), 60, 4, ""), draw_after(&twelve_commits(), 60, 4, "g"));
+    assert_eq!(draw_after(&twelve_commits(), 60, 4, "G"), draw_after(&twelve_commits(), 60, 4, "GG"));
+}
+
+#[test]
+fn d_and_u_without_ctrl_do_nothing() {
+    let start = draw_after(&twelve_commits(), 60, 4, "");
+
+    assert_eq!(start, draw_after(&twelve_commits(), 60, 4, "du"));
+    assert_eq!(draw_after(&twelve_commits(), 60, 4, "jjj"), draw_after(&twelve_commits(), 60, 4, "jjjdu"));
+}
+
+#[test]
+fn a_half_page_is_at_least_one_row() {
+    let buffer = draw_chords(&twelve_commits(), 60, 1, &[('d', CTRL)]);
+
+    assert!(row_text(&buffer, 0).contains("commit k"));
 }
 
 const MAUVE: Color = Color::Rgb(0xcb, 0xa6, 0xf7);
@@ -832,7 +917,7 @@ fn keeps_the_selection_on_the_same_commit_when_more_commits_arrive() {
     history.push(commits.next().unwrap());
     history.push(commits.next().unwrap());
     let mut terminal = Terminal::new(TestBackend::new(60, 5)).unwrap();
-    let view = fit(press(View::default(), 'j', history.len()), history.len(), 5, 0);
+    let view = fit(press(View::default(), 'j', KeyModifiers::NONE, history.len(), 2), history.len(), 5, 0);
     terminal.draw(|frame| render(frame, &history, view, &Loading::Reading, NOW)).unwrap();
     let before = selected_row(terminal.backend().buffer());
 

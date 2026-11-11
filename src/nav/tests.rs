@@ -1,6 +1,6 @@
 use ratatui::crossterm::event::KeyModifiers;
 
-use crate::nav::{Loading, View, fit, list_height, press, quits};
+use crate::nav::{Loading, View, fit, list_height, page, press, quits};
 
 #[test]
 fn q_quits() {
@@ -21,6 +21,9 @@ fn c_without_ctrl_does_not_quit() {
 fn ctrl_with_another_letter_does_not_quit() {
     assert!(!quits('j', KeyModifiers::CONTROL));
 }
+
+const NONE: KeyModifiers = KeyModifiers::NONE;
+const CTRL: KeyModifiers = KeyModifiers::CONTROL;
 
 fn view(selected: usize, top: usize, offset: usize) -> View {
     View { selected, top, offset }
@@ -54,12 +57,36 @@ fn fit_brings_the_selection_and_the_offset_back_within_their_bounds() {
 
 #[test]
 fn press_moves_the_selection_and_the_offset_within_their_edges() {
-    assert_eq!(press(view(0, 0, 0), 'k', 3), view(0, 0, 0));
-    assert_eq!(press(view(0, 0, 0), 'j', 3), view(1, 0, 0));
-    assert_eq!(press(view(2, 0, 0), 'j', 3), view(2, 0, 0));
-    assert_eq!(press(view(0, 0, 0), 'h', 3), view(0, 0, 0));
-    assert_eq!(press(view(0, 0, 4), 'l', 3), view(0, 0, 5));
-    assert_eq!(press(view(0, 0, 4), 'h', 3), view(0, 0, 3));
+    assert_eq!(press(view(0, 0, 0), 'k', NONE, 3, 2), view(0, 0, 0));
+    assert_eq!(press(view(0, 0, 0), 'j', NONE, 3, 2), view(1, 0, 0));
+    assert_eq!(press(view(2, 0, 0), 'j', NONE, 3, 2), view(2, 0, 0));
+    assert_eq!(press(view(0, 0, 0), 'h', NONE, 3, 2), view(0, 0, 0));
+    assert_eq!(press(view(0, 0, 4), 'l', NONE, 3, 2), view(0, 0, 5));
+    assert_eq!(press(view(0, 0, 4), 'h', NONE, 3, 2), view(0, 0, 3));
+}
+
+#[test]
+fn g_and_capital_g_jump_to_the_first_and_the_last_commit_and_leave_the_offset() {
+    assert_eq!(press(view(4, 2, 3), 'g', NONE, 10, 2), view(0, 2, 3));
+    assert_eq!(press(view(4, 2, 3), 'G', NONE, 10, 2), view(9, 2, 3));
+    assert_eq!(press(view(0, 0, 0), 'G', NONE, 0, 2), view(0, 0, 0));
+}
+
+#[test]
+fn ctrl_d_and_ctrl_u_move_a_page_within_the_edges_and_leave_the_offset() {
+    assert_eq!(press(view(1, 0, 3), 'd', CTRL, 10, 4), view(5, 0, 3));
+    assert_eq!(press(view(8, 0, 3), 'd', CTRL, 10, 4), view(9, 0, 3));
+    assert_eq!(press(view(5, 0, 3), 'u', CTRL, 10, 4), view(1, 0, 3));
+    assert_eq!(press(view(2, 0, 3), 'u', CTRL, 10, 4), view(0, 0, 3));
+}
+
+#[test]
+fn d_and_u_need_ctrl_and_the_other_keys_refuse_it() {
+    assert_eq!(press(view(1, 0, 0), 'd', NONE, 10, 4), view(1, 0, 0));
+    assert_eq!(press(view(5, 0, 0), 'u', NONE, 10, 4), view(5, 0, 0));
+    for key in ['j', 'k', 'h', 'l', 'g', 'G'] {
+        assert_eq!(press(view(5, 0, 5), key, CTRL, 10, 4), view(5, 0, 5));
+    }
 }
 
 #[test]
@@ -68,4 +95,12 @@ fn the_list_loses_its_last_row_to_the_status_line_unless_loading_is_done() {
     assert_eq!(list_height(50, &Loading::Failed(String::new())), 49);
     assert_eq!(list_height(50, &Loading::Done), 50);
     assert_eq!(list_height(0, &Loading::Reading), 0);
+}
+
+#[test]
+fn a_page_is_half_the_list_height_and_at_least_one_row() {
+    assert_eq!(page(50, &Loading::Done), 25);
+    assert_eq!(page(50, &Loading::Reading), 24);
+    assert_eq!(page(1, &Loading::Done), 1);
+    assert_eq!(page(0, &Loading::Done), 1);
 }

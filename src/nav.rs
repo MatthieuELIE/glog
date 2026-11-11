@@ -21,10 +21,34 @@ pub fn list_height(terminal_height: usize, loading: &Loading) -> usize {
     terminal_height.saturating_sub(1)
 }
 
-pub fn press(view: View, key: char, len: usize) -> View {
+pub fn page(terminal_height: usize, loading: &Loading) -> usize {
+    (list_height(terminal_height, loading) / 2).max(1)
+}
+
+pub fn press(view: View, key: char, modifiers: KeyModifiers, len: usize, page: usize) -> View {
+    let last = len.saturating_sub(1);
+
+    if modifiers.contains(KeyModifiers::CONTROL) {
+        if key == 'd' {
+            return View {
+                selected: (view.selected + page).min(last),
+                ..view
+            };
+        }
+
+        if key == 'u' {
+            return View {
+                selected: view.selected.saturating_sub(page),
+                ..view
+            };
+        }
+
+        return view;
+    }
+
     if key == 'j' {
         return View {
-            selected: (view.selected + 1).min(len.saturating_sub(1)),
+            selected: (view.selected + 1).min(last),
             ..view
         };
     }
@@ -34,6 +58,14 @@ pub fn press(view: View, key: char, len: usize) -> View {
             selected: view.selected.saturating_sub(1),
             ..view
         };
+    }
+
+    if key == 'g' {
+        return View { selected: 0, ..view };
+    }
+
+    if key == 'G' {
+        return View { selected: last, ..view };
     }
 
     if key == 'l' {
