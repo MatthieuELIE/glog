@@ -7,9 +7,10 @@ use std::{
 
 use clap::Parser;
 use glog::{
-    draw::{graph_width, max_offset, render},
+    draw::{max_offset, render},
+    history::History,
     nav::{self, View, fit, press},
-    parse::{Commit, parse},
+    parse::parse,
     read::read_log,
 };
 use ratatui::{
@@ -23,20 +24,18 @@ fn clock_seconds() -> i64 {
         .map_or(0, |elapsed| i64::try_from(elapsed.as_secs()).unwrap_or(i64::MAX))
 }
 
-fn event_loop(terminal: &mut DefaultTerminal, commits: &[Commit], now: i64) -> io::Result<()> {
-    let graph_width = graph_width(commits);
-
+fn event_loop(terminal: &mut DefaultTerminal, history: &History, now: i64) -> io::Result<()> {
     let mut view = View::default();
 
     loop {
         let size = terminal.size()?;
         view = fit(
             view,
-            commits.len(),
+            history.len(),
             usize::from(size.height),
-            max_offset(graph_width, usize::from(size.width)),
+            max_offset(history.max_lanes(), usize::from(size.width)),
         );
-        terminal.draw(|frame| render(frame, commits, view, now))?;
+        terminal.draw(|frame| render(frame, history, view, now))?;
 
         if let Event::Key(key) = event::read()?
             && let KeyCode::Char(character) = key.code
@@ -44,7 +43,7 @@ fn event_loop(terminal: &mut DefaultTerminal, commits: &[Commit], now: i64) -> i
             if nav::quits(character, key.modifiers) {
                 return Ok(());
             }
-            view = press(view, character, commits.len());
+            view = press(view, character, history.len());
         }
     }
 }
@@ -68,15 +67,19 @@ fn main() -> ExitCode {
         }
     };
 
-    let commits = parse(&log);
-    if commits.is_empty() {
+    let mut history = History::default();
+    for commit in parse(&log) {
+        history.push(commit);
+    }
+    drop(log);
+    if history.is_empty() {
         eprintln!("glog: no commits yet");
         return ExitCode::FAILURE;
     }
 
     let now = clock_seconds();
 
-    match ratatui::run(|terminal| event_loop(terminal, &commits, now)) {
+    match ratatui::run(|terminal| event_loop(terminal, &history, now)) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("{error}");

@@ -1,10 +1,15 @@
 exclude_re = [
     # event_loop reads key events from the terminal through crossterm: neither seam reaches it, since the Seam 2 tests run the binary without a tty.
-    'src/main\.rs:27:5: replace event_loop -> io::Result<\(\)> with Ok\(\(\)\)',
+    'src/main\.rs:28:5: replace event_loop -> io::Result<\(\)> with Ok\(\(\)\)',
     # With a width of 0 the extra ellipsis lands past the end of the area and ratatui clips it, so nothing shown changes.
     'src/draw\.rs:45:14: replace > with >= in truncate',
-    # The range then starts at 2 * from, a cell always overwritten afterwards by the node or an end symbol.
-    'src/lanes\.rs:170:41: replace \+ with \* in draw_cells',
     # An end never sits in the node's column: a joined lane lies right of the node and an opened lane takes a free column, never the node's.
-    'src/lanes\.rs:185:32: replace < with <= in draw_cells',
+    'src/lanes\.rs:165:30: replace < with <= in end_symbol',
+    # A cell in the column of the node or of an end is settled by an earlier branch of cell_at, so the bounds of the span are never tested for equality.
+    'src/lanes\.rs:216:53: replace < with <= in cell_at',
+    'src/lanes\.rs:216:72: replace < with <= in cell_at',
+    # Replaying from row 0 over the resume point's state rewrites every column the state holds with the value it already has: the result is the same, only slower: the key latency of bench/run.py is the guard.
+    'src/history\.rs:145:21: replace \* with / in History::lanes_before',
+    # A trailing free column left in place widens no row: its width was already counted when the lane ended, and advance trims on its own.
+    'src/lanes\.rs:88:9: replace Placer::trim with \(\)',
 ]

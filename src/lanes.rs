@@ -1,6 +1,6 @@
-use std::cmp::Reverse;
+use std::collections::{BTreeSet, HashMap};
 
-use crate::parse::{Commit, RefKind};
+use crate::parse::Commit;
 
 const NODE: char = '●';
 const HEAD_NODE: char = '○';
@@ -9,189 +9,226 @@ const BLANK: char = ' ';
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Cell {
     pub symbol: char,
-    pub color: usize,
+    pub color: u32,
 }
 
-#[derive(Debug)]
-pub struct GraphRow {
-    pub cells: Vec<Cell>,
-    pub node_color: usize,
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Junction {
+    pub column: u32,
+    pub color: u32,
+    pub opens: bool,
 }
 
-#[derive(Clone)]
-struct Lane {
-    expects: String,
-    color: usize,
+#[derive(Clone, Debug, PartialEq)]
+pub struct LaneRow {
+    pub node_column: u32,
+    pub color: u32,
+    pub keeps_lane: bool,
+    pub junctions: Vec<Junction>,
+    pub width: u32,
 }
 
-type Columns = Vec<Option<Lane>>;
+type Columns = Vec<Option<u32>>;
 
 const BLANK_CELL: Cell = Cell { symbol: BLANK, color: 0 };
 
-pub fn place(commits: &[Commit]) -> Vec<GraphRow> {
-    let mut columns: Columns = Vec::new();
-    let mut next_color = 0;
-    let mut rows = Vec::new();
+#[derive(Default)]
+pub struct Placer {
+    columns: Columns,
+    waiting: HashMap<String, Vec<u32>>,
+    free: BTreeSet<u32>,
+    next_color: u32,
+}
 
-    for commit in commits {
-        let (row, next_columns, following_color) = place_row(&columns, next_color, commit);
-        rows.push(row);
-        columns = next_columns;
-        next_color = following_color;
+fn column_index(column: u32) -> usize {
+    column as usize
+}
+
+fn column_number(index: usize) -> u32 {
+    u32::try_from(index).unwrap_or(u32::MAX)
+}
+
+impl Placer {
+    pub fn lanes(&self) -> Columns {
+        self.columns.clone()
     }
 
-    pad_rows(rows)
-}
+    fn take_color(&mut self) -> u32 {
+        let color = self.next_color;
+        self.next_color += 1;
 
-fn pad_rows(rows: Vec<GraphRow>) -> Vec<GraphRow> {
-    let width = rows.iter().map(|row| row.cells.len()).max().unwrap_or(0);
-
-    rows.into_iter()
-        .map(|mut row| {
-            row.cells.resize(width, BLANK_CELL);
-            row
-        })
-        .collect()
-}
-
-fn leftmost_free(columns: &Columns) -> usize {
-    columns.iter().position(Option::is_none).unwrap_or(columns.len())
-}
-
-fn claim(columns: &mut Columns, lane: Lane) -> usize {
-    let column = leftmost_free(columns);
-    if column == columns.len() {
-        columns.push(None);
+        color
     }
-    columns[column] = Some(lane);
 
-    column
-}
-
-fn joining_columns(columns: &Columns, hash: &str) -> Vec<usize> {
-    columns
-        .iter()
-        .enumerate()
-        .filter(|(_, lane)| lane.as_ref().is_some_and(|lane| lane.expects == hash))
-        .map(|(column, _)| column)
-        .collect()
-}
-
-fn lane_color(columns: &Columns, column: usize) -> usize {
-    columns[column].as_ref().map_or(0, |lane| lane.color)
-}
-
-fn place_row(columns: &Columns, next_color: usize, commit: &Commit) -> (GraphRow, Columns, usize) {
-    let mut next = columns.clone();
-    let mut next_color = next_color;
-    let joining = joining_columns(columns, &commit.hash);
-
-    let (node_column, color) = match joining.first() {
-        Some(&column) => (column, lane_color(columns, column)),
-        None => {
-            let color = next_color;
-            next_color += 1;
-            (leftmost_free(columns), color)
+    fn leftmost_free(&mut self) -> u32 {
+        if let Some(column) = self.free.pop_first() {
+            return column;
         }
-    };
-    if node_column == next.len() {
-        next.push(None);
-    }
-    next[node_column] = commit.parents.first().map(|parent| Lane {
-        expects: parent.clone(),
-        color,
-    });
+        self.columns.push(None);
 
-    let joined: Vec<(usize, usize)> = joining.iter().skip(1).map(|&column| (column, lane_color(columns, column))).collect();
-    for &(column, _) in &joined {
-        next[column] = None;
+        column_number(self.columns.len() - 1)
     }
 
-    let mut opened = Vec::new();
-    for parent in commit.parents.iter().skip(1) {
-        let lane = Lane {
-            expects: parent.clone(),
-            color: next_color,
+    fn occupy(&mut self, column: u32, color: u32, expects: &str) {
+        self.columns[column_index(column)] = Some(color);
+        self.free.remove(&column);
+        self.waiting.entry(expects.to_string()).or_default().push(column);
+    }
+
+    fn release(&mut self, column: u32) {
+        self.columns[column_index(column)] = None;
+        self.free.insert(column);
+    }
+
+    fn lane_color(&self, column: u32) -> u32 {
+        self.columns[column_index(column)].unwrap_or(0)
+    }
+
+    fn trim(&mut self) {
+        while self.columns.last().is_some_and(Option::is_none) {
+            self.columns.pop();
+            self.free.remove(&column_number(self.columns.len()));
+        }
+    }
+
+    pub fn place(&mut self, commit: &Commit) -> LaneRow {
+        let before = self.columns.len();
+        let mut joining = self.waiting.remove(&commit.hash).unwrap_or_default();
+        joining.sort_unstable();
+
+        let (node_column, color) = match joining.first() {
+            Some(&column) => (column, self.lane_color(column)),
+            None => (self.leftmost_free(), self.take_color()),
         };
-        opened.push((claim(&mut next, lane), next_color));
-        next_color += 1;
+
+        let mut junctions = Vec::new();
+        for &column in joining.iter().skip(1) {
+            junctions.push(Junction {
+                column,
+                color: self.lane_color(column),
+                opens: false,
+            });
+            self.release(column);
+        }
+
+        let keeps_lane = !commit.parents.is_empty();
+        match commit.parents.first() {
+            Some(parent) => self.occupy(node_column, color, parent),
+            None => self.release(node_column),
+        }
+
+        for parent in commit.parents.iter().skip(1) {
+            let column = self.leftmost_free();
+            let color = self.take_color();
+            self.occupy(column, color, parent);
+            junctions.push(Junction { column, color, opens: true });
+        }
+
+        let width = column_number(before.max(self.columns.len()));
+        self.trim();
+
+        LaneRow {
+            node_column,
+            color,
+            keeps_lane,
+            junctions,
+            width,
+        }
     }
-
-    let cells = draw_cells(
-        columns,
-        next.len(),
-        Node { column: node_column, color },
-        commit,
-        &joining,
-        &opened,
-        &joined,
-    );
-
-    while next.last().is_some_and(Option::is_none) {
-        next.pop();
-    }
-
-    (GraphRow { cells, node_color: color }, next, next_color)
 }
 
-struct Node {
-    column: usize,
-    color: usize,
+fn set_column(lanes: &mut Columns, column: u32, color: Option<u32>) {
+    let index = column_index(column);
+    if index >= lanes.len() {
+        lanes.resize(index + 1, None);
+    }
+    lanes[index] = color;
 }
 
-fn draw_cells(
-    before: &Columns,
-    after_len: usize,
-    node: Node,
-    commit: &Commit,
-    joining: &[usize],
-    opened: &[(usize, usize)],
-    joined: &[(usize, usize)],
-) -> Vec<Cell> {
-    let Node { column: node_column, color } = node;
-    let columns = before.len().max(after_len);
-    let mut cells = vec![BLANK_CELL; (2 * columns).saturating_sub(1)];
+pub fn advance(lanes: Columns, row: &LaneRow) -> Columns {
+    let mut lanes = lanes;
+    set_column(&mut lanes, row.node_column, row.keeps_lane.then_some(row.color));
+    for junction in &row.junctions {
+        set_column(&mut lanes, junction.column, junction.opens.then_some(junction.color));
+    }
+    while lanes.last().is_some_and(Option::is_none) {
+        lanes.pop();
+    }
 
-    let ends = joined
+    lanes
+}
+
+fn end_symbol(row: &LaneRow, column: u32) -> Option<(char, u32)> {
+    let ends = || row.junctions.iter().filter(move |junction| junction.column == column);
+    let closes = ends().any(|junction| !junction.opens);
+    let opening = ends().find(|junction| junction.opens);
+    let toward_left = column < row.node_column;
+
+    if let Some(junction) = opening {
+        let symbol = match (closes, toward_left) {
+            (true, true) => '├',
+            (true, false) => '┤',
+            (false, true) => '╭',
+            (false, false) => '╮',
+        };
+
+        return Some((symbol, junction.color));
+    }
+
+    let closing = ends().next()?;
+    let symbol = if toward_left { '╰' } else { '╯' };
+
+    Some((symbol, closing.color))
+}
+
+fn crossing_color(row: &LaneRow, between: impl Fn(u32, u32) -> bool) -> Option<u32> {
+    row.junctions
         .iter()
-        .map(|&(column, color)| (column, color, '╰', '╯'))
-        .chain(opened.iter().map(|&(column, color)| {
-            if joined.iter().any(|&(joined_column, _)| joined_column == column) {
-                return (column, color, '├', '┤');
+        .filter(|junction| between(row.node_column.min(junction.column), row.node_column.max(junction.column)))
+        .max_by_key(|junction| std::cmp::Reverse(junction.column.abs_diff(row.node_column)))
+        .map(|junction| junction.color)
+}
+
+fn cell_at(before: &[Option<u32>], row: &LaneRow, head: bool, index: usize) -> Cell {
+    let column = column_number(index / 2);
+    if index % 2 == 1 {
+        let color = crossing_color(row, |from, to| from <= column && column < to);
+
+        return color.map_or(BLANK_CELL, |color| Cell { symbol: '─', color });
+    }
+
+    if column == row.node_column {
+        let symbol = if head { HEAD_NODE } else { NODE };
+
+        return Cell { symbol, color: row.color };
+    }
+
+    if let Some((symbol, color)) = end_symbol(row, column) {
+        return Cell { symbol, color };
+    }
+
+    if let Some(Some(color)) = before.get(column_index(column)) {
+        return Cell {
+            symbol: '│', color: *color
+        };
+    }
+
+    let color = crossing_color(row, |from, to| from < column && column < to);
+
+    color.map_or(BLANK_CELL, |color| Cell { symbol: '─', color })
+}
+
+pub fn cells(before: &[Option<u32>], row: &LaneRow, head: bool, offset: usize, window: usize) -> Vec<Cell> {
+    let start = offset * 2;
+    let row_cells = (2 * column_index(row.width)).saturating_sub(1);
+
+    (start..start + window)
+        .map(|index| {
+            if index >= row_cells {
+                return BLANK_CELL;
             }
 
-            (column, color, '╭', '╮')
-        }));
-    let mut ends: Vec<_> = ends.collect();
-    ends.sort_by_key(|&(column, ..)| Reverse(column.abs_diff(node_column)));
-
-    for &(column, color, _, _) in &ends {
-        let (from, to) = (node_column.min(column), node_column.max(column));
-        for cell in &mut cells[2 * from + 1..2 * to] {
-            *cell = Cell { symbol: '─', color };
-        }
-    }
-    for (column, lane) in before.iter().enumerate() {
-        if let Some(lane) = lane
-            && !joining.contains(&column)
-        {
-            cells[2 * column] = Cell {
-                symbol: '│',
-                color: lane.color,
-            };
-        }
-    }
-    for &(column, color, left, right) in &ends {
-        let symbol = if column < node_column { left } else { right };
-        cells[2 * column] = Cell { symbol, color };
-    }
-
-    let symbol = if commit.refs.iter().any(|reference| reference.kind == RefKind::Head) {
-        HEAD_NODE
-    } else {
-        NODE
-    };
-    cells[2 * node_column] = Cell { symbol, color };
-
-    cells
+            cell_at(before, row, head, index)
+        })
+        .collect()
 }

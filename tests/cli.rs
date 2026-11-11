@@ -33,6 +33,22 @@ fn glog_in_a_repository_without_commit_fails_with_its_own_message() {
     assert!(String::from_utf8_lossy(&output.stderr).contains("no commits"));
 }
 
+#[test]
+fn glog_in_a_repository_with_a_commit_does_not_report_an_empty_history() {
+    let dir = TempDir::new();
+    dir.git(&["init", "-q", "-b", "main"]);
+    dir.git(&["commit", "-q", "--allow-empty", "-m", "first"]);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_glog"))
+        .current_dir(dir.path())
+        .env_remove("GIT_DIR")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .unwrap();
+
+    assert!(!String::from_utf8_lossy(&output.stderr).contains("no commits"));
+}
+
 fn run_outside_a_repository(args: &[&str]) -> std::process::Output {
     let dir = TempDir::new();
 
