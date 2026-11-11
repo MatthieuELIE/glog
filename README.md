@@ -7,7 +7,7 @@ A read-only, coloured git log graph for the terminal: every branch, remote and t
 ## Install
 
 ```sh
-cargo install --locked --git https://github.com/MatthieuELIE/glog --tag v0.1.1
+cargo install --locked --git https://github.com/MatthieuELIE/glog --tag v0.1.2
 ```
 
 This puts `glog` in `~/.cargo/bin`. From a clone, run `cargo install --locked --path .` instead.
