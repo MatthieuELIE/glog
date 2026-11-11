@@ -1,7 +1,5 @@
 const FIELD_SEPARATOR: char = '\x1f';
 
-const SHORT_HASH_LENGTH: usize = 7;
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum RefKind {
     Head,
@@ -27,10 +25,6 @@ pub struct Commit {
 
 pub fn parse(log: &str) -> Vec<Commit> {
     log.lines().filter_map(parse_commit).collect()
-}
-
-fn short_hash(hash: &str) -> String {
-    hash.chars().take(SHORT_HASH_LENGTH).collect()
 }
 
 fn named(kind: RefKind, name: &str) -> Ref {
@@ -84,8 +78,8 @@ fn parse_commit(line: &str) -> Option<Commit> {
     let subject = fields.next()?;
 
     Some(Commit {
-        hash: short_hash(hash),
-        parents: parents.split_whitespace().map(short_hash).collect(),
+        hash: hash.to_string(),
+        parents: parents.split_whitespace().map(str::to_string).collect(),
         refs: parse_refs(refs),
         date: date.to_string(),
         author: author.to_string(),

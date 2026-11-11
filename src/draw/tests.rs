@@ -323,6 +323,22 @@ fn links_commits_to_parents_given_as_full_hashes() {
 }
 
 #[test]
+fn does_not_link_commits_sharing_their_first_seven_characters() {
+    let full = |tail: &str| format!("bbbbbbb{tail}{}", "0".repeat(32));
+    let log = [
+        line(&format!("aaaaaaa1{}", "0".repeat(32)), &full("1"), "", "1 day ago", "Ann", "child"),
+        line(&full("2"), "", "", "1 day ago", "Ann", "unrelated"),
+        line(&full("1"), "", "", "1 day ago", "Ann", "parent"),
+    ]
+    .join("\n");
+
+    let buffer = draw(&log, 40, 3);
+
+    assert_eq!(graph(&buffer, 1, 3), "│ ●");
+    assert_eq!(graph(&buffer, 2, 3), "●  ");
+}
+
+#[test]
 fn a_new_lane_takes_the_leftmost_free_column() {
     let log = [
         line("xxxxxxx", "x000000", "", "1 day ago", "Ann", "x"),
