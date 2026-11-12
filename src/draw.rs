@@ -13,7 +13,7 @@ use crate::{
     lanes::{Cell, advance, cells},
     nav::{Loading, View},
     parse::{Ref, RefKind},
-    theme::{BASE, LANE_COLORS, OVERLAY, RED, SUBTEXT, SURFACE1, TEXT, YELLOW},
+    theme::{BASE, LANE_COLORS, OVERLAY, RED, SUBTEXT, SURFACE0, SURFACE1, TEXT, YELLOW},
 };
 
 const DATE_WIDTH: usize = 4;
@@ -122,7 +122,24 @@ fn badge_spans(refs: &[Ref], node_color: u32) -> Vec<Span<'static>> {
         .collect()
 }
 
-fn commit_line(history: &History, row: usize, graph: Vec<Span<'static>>, node_color: u32, now: i64, message_width: usize) -> Line<'static> {
+fn subject_style(selected: bool) -> Style {
+    let style = Style::new().fg(TEXT);
+    if selected {
+        return style.add_modifier(Modifier::BOLD);
+    }
+
+    style
+}
+
+fn commit_line(
+    history: &History,
+    row: usize,
+    graph: Vec<Span<'static>>,
+    node_color: u32,
+    now: i64,
+    message_width: usize,
+    selected: bool,
+) -> Line<'static> {
     let mut spans = graph;
     spans.extend([
         Span::raw(" "),
@@ -138,7 +155,7 @@ fn commit_line(history: &History, row: usize, graph: Vec<Span<'static>>, node_co
     spans.extend(badges);
     spans.push(Span::styled(
         truncate(history.subject(row), message_width.saturating_sub(badges_width)),
-        Style::new().fg(TEXT),
+        subject_style(selected),
     ));
 
     Line::from(spans)
@@ -179,9 +196,10 @@ pub fn render(frame: &mut Frame, history: &History, view: View, loading: &Loadin
         let lane_row = history.lane_row(row);
         let cells = cells(&lanes, &lane_row, is_head(history.refs(row)), view.offset, drawn_cells);
         let graph = graph_spans(&cells, view.offset, graph_width, window_width);
-        let mut item = ListItem::new(commit_line(history, row, graph, lane_row.color, now, message_width));
-        if row == view.selected {
-            item = item.style(Style::new().bg(SURFACE1));
+        let selected = row == view.selected;
+        let mut item = ListItem::new(commit_line(history, row, graph, lane_row.color, now, message_width, selected));
+        if selected {
+            item = item.style(Style::new().bg(SURFACE0));
         }
         items.push(item);
         lanes = advance(lanes, &lane_row);

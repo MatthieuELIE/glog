@@ -171,6 +171,7 @@ fn colours_author_in_subtext_apart_from_the_date() {
     assert_eq!(buffer[(22, 1)].fg, Color::Rgb(0xa6, 0xad, 0xc8));
 }
 
+const SURFACE0: Color = Color::Rgb(0x31, 0x32, 0x44);
 const SURFACE1: Color = Color::Rgb(0x45, 0x47, 0x5a);
 
 fn five_commits() -> String {
@@ -180,16 +181,25 @@ fn five_commits() -> String {
 }
 
 fn highlighted_rows(buffer: &Buffer) -> Vec<u16> {
-    (0..buffer.area.height).filter(|&y| buffer[(0, y)].bg == SURFACE1).collect()
+    (0..buffer.area.height).filter(|&y| buffer[(0, y)].bg == SURFACE0).collect()
 }
 
 #[test]
-fn highlights_the_first_row_in_surface1_at_start() {
+fn highlights_the_first_row_in_surface0_at_start() {
     let buffer = draw(&five_commits(), 40, 5);
 
     assert_eq!(highlighted_rows(&buffer), vec![0]);
-    assert_eq!(buffer[(39, 0)].bg, SURFACE1);
+    assert_eq!(buffer[(39, 0)].bg, SURFACE0);
     assert_eq!(buffer[(2, 0)].fg, Color::Rgb(0x6c, 0x70, 0x86));
+}
+
+#[test]
+fn bolds_the_subject_of_the_selected_row_only() {
+    let buffer = draw(&five_commits(), 40, 5);
+
+    assert!(is_bold(&buffer, 0, "commit e"));
+    assert!(!is_bold(&buffer, 1, "commit d"));
+    assert!(!is_bold(&buffer, 0, "Ann"));
 }
 
 #[test]
@@ -536,7 +546,7 @@ fn keeps_the_pill_background_on_the_selected_row() {
     assert_eq!(cell_at(&buffer, 0, "main").bg, MAUVE);
     assert_eq!(cell_at(&buffer, 0, "origin/main").bg, SURFACE1);
     assert_eq!(cell_at(&buffer, 0, "v1.0").bg, YELLOW);
-    assert_eq!(buffer[(79, 0)].bg, SURFACE1);
+    assert_eq!(buffer[(79, 0)].bg, SURFACE0);
 }
 
 #[test]
@@ -1014,7 +1024,7 @@ fn shows_the_first_line_of_the_failure_in_red_and_keeps_the_commits() {
 }
 
 fn selected_row(buffer: &Buffer) -> Option<u16> {
-    (0..buffer.area.height).find(|&y| buffer[(0, y)].bg == Color::Rgb(0x45, 0x47, 0x5a))
+    (0..buffer.area.height).find(|&y| buffer[(0, y)].bg == SURFACE0)
 }
 
 #[test]
