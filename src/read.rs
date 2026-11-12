@@ -11,7 +11,10 @@ use std::{
     time::Duration,
 };
 
-use crate::parse::{Commit, parse_commit};
+use crate::{
+    history::SHORT_HASH_WIDTH,
+    parse::{Commit, parse_commit},
+};
 
 const LOG_FORMAT: &str = "--format=%H%x1f%P%x1f%D%x1f%at%x1f%an%x1f%s";
 const FIRST_BATCH: usize = 256;
@@ -94,6 +97,54 @@ fn finish(child: &Mutex<Child>, mut stderr: impl Read) -> Loaded {
         Ok(_) => Loaded::Failed(message.trim_end().to_string()),
         Err(error) => Loaded::Failed(format!("cannot wait for git: {error}")),
     }
+}
+
+#[derive(Debug, Default)]
+pub struct Identity {
+    pub name: String,
+    pub branch: String,
+}
+
+fn repo_name(common_dir: &Path) -> String {
+    let folder = |path: &Path| path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default();
+    if common_dir.file_name().is_some_and(|name| name == ".git") {
+        return common_dir.parent().map(folder).unwrap_or_default();
+    }
+
+    let name = folder(common_dir);
+
+    name.strip_suffix(".git").map(str::to_string).unwrap_or(name)
+}
+
+fn git_line(dir: &Path, args: &[&str]) -> Result<String, String> {
+    let output = Command::new("git")
+        .current_dir(dir)
+        .env("LC_ALL", "C")
+        .args(args)
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|error| format!("cannot run git: {error}"))?;
+    if !output.status.success() {
+        let message = String::from_utf8_lossy(&output.stderr);
+
+        return Err(message.trim_end().to_string());
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).trim_end().to_string())
+}
+
+pub fn identity(dir: &Path) -> Result<Identity, String> {
+    let common_dir = git_line(dir, &["rev-parse", "--path-format=absolute", "--git-common-dir"])?;
+    let branch = match git_line(dir, &["symbolic-ref", "-q", "--short", "HEAD"]) {
+        Ok(branch) => branch,
+        Err(message) if message.is_empty() => git_line(dir, &["rev-parse", "HEAD"])?.chars().take(SHORT_HASH_WIDTH).collect(),
+        Err(message) => return Err(message),
+    };
+
+    Ok(Identity {
+        name: repo_name(Path::new(&common_dir)),
+        branch,
+    })
 }
 
 pub fn start(dir: &Path) -> Result<Reader, String> {

@@ -13,6 +13,7 @@ use crate::{
     lanes::{Cell, advance, cells},
     nav::{Loading, View},
     parse::{Ref, RefKind},
+    read::Identity,
     theme::{BASE, LANE_COLORS, OVERLAY, RED, SUBTEXT, SURFACE0, SURFACE1, TEXT, YELLOW},
 };
 
@@ -21,6 +22,7 @@ const AUTHOR_WIDTH: usize = 15;
 const SEPARATORS_WIDTH: usize = 4;
 const CELLS_PER_LANE: usize = 2;
 const ELLIPSIS: char = '…';
+const STATUS_SEPARATOR: &str = "  ";
 const EDGE_CELLS: usize = 2;
 const MIN_DIMMED_WINDOW: usize = 5;
 
@@ -201,27 +203,76 @@ fn thousands(number: usize) -> String {
     grouped
 }
 
-fn status_line(rank: usize, total: usize, loading: &Loading, width: usize) -> Line<'static> {
+fn repo_width(identity: &Identity) -> usize {
+    if identity.name.is_empty() {
+        return 0;
+    }
+
+    identity.name.width() + STATUS_SEPARATOR.width()
+}
+
+fn branch_width(identity: &Identity) -> usize {
+    if identity.branch.is_empty() {
+        return 0;
+    }
+
+    pill_label(&identity.branch).width() + STATUS_SEPARATOR.width()
+}
+
+fn pill_label(name: &str) -> String {
+    format!(" {name} ")
+}
+
+fn shown_parts(identity: &Identity, tail_width: usize, width: usize) -> (bool, bool) {
+    if repo_width(identity) + branch_width(identity) + tail_width <= width {
+        return (true, true);
+    }
+
+    (false, branch_width(identity) + tail_width <= width)
+}
+
+fn identity_spans(identity: &Identity, width: usize, tail_width: usize) -> Vec<Span<'static>> {
+    let (show_repo, show_branch) = shown_parts(identity, tail_width, width);
+    let mut spans = Vec::new();
+    if show_repo && repo_width(identity) > 0 {
+        spans.push(Span::styled(identity.name.clone(), Style::new().fg(SUBTEXT)));
+        spans.push(Span::raw(STATUS_SEPARATOR));
+    }
+    if show_branch && branch_width(identity) > 0 {
+        let pill = Style::new().fg(BASE).bg(TEXT).add_modifier(Modifier::BOLD);
+        spans.push(Span::styled(pill_label(&identity.branch), pill));
+        spans.push(Span::raw(STATUS_SEPARATOR));
+    }
+
+    spans
+}
+
+fn status_line(identity: &Identity, rank: usize, total: usize, loading: &Loading, width: usize) -> Line<'static> {
     if let Loading::Failed(message) = loading {
         let first_line = message.lines().next().unwrap_or_default();
+        let mut spans = identity_spans(identity, width, first_line.width());
+        let room = width.saturating_sub(spans.iter().map(Span::width).sum());
+        spans.push(Span::styled(truncate(first_line, room), Style::new().fg(RED)));
 
-        return Line::styled(truncate(first_line, width), Style::new().fg(RED));
+        return Line::from(spans);
     }
 
     let mut position = format!("{}/{}", thousands(rank), thousands(total));
     if matches!(loading, Loading::Reading) {
         position.push(ELLIPSIS);
     }
+    let mut spans = identity_spans(identity, width, position.width());
+    spans.push(Span::styled(position, Style::new().fg(OVERLAY)));
 
-    Line::styled(position, Style::new().fg(OVERLAY)).right_aligned()
+    Line::from(spans).right_aligned()
 }
 
-pub fn render(frame: &mut Frame, history: &History, view: View, loading: &Loading, now: i64) {
+pub fn render(frame: &mut Frame, history: &History, view: View, loading: &Loading, identity: &Identity, now: i64) {
     let full = frame.area();
     let [list_area, status_area] = Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]).areas(full);
     let rank = (view.selected + 1).min(history.len());
     frame.render_widget(
-        Paragraph::new(status_line(rank, history.len(), loading, usize::from(full.width))),
+        Paragraph::new(status_line(identity, rank, history.len(), loading, usize::from(full.width))),
         status_area,
     );
 

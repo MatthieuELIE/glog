@@ -11,7 +11,7 @@ use glog::{
     draw::{max_offset, render, reveal_offset},
     history::History,
     nav::{self, Loading, View, fit, follow, list_height, page, press},
-    read::{Loaded, Reader, start},
+    read::{Identity, Loaded, Reader, identity, start},
 };
 use ratatui::{
     DefaultTerminal,
@@ -54,7 +54,7 @@ fn key_pressed(loading: &Loading) -> io::Result<Option<event::KeyEvent>> {
     }
 }
 
-fn event_loop(terminal: &mut DefaultTerminal, reader: &Reader, history: &mut History, now: i64) -> io::Result<()> {
+fn event_loop(terminal: &mut DefaultTerminal, reader: &Reader, history: &mut History, identity: &Identity, now: i64) -> io::Result<()> {
     let mut view = View::default();
     let mut loading = Loading::Reading;
 
@@ -67,7 +67,7 @@ fn event_loop(terminal: &mut DefaultTerminal, reader: &Reader, history: &mut His
             list_height(usize::from(size.height)),
             max_offset(history.max_lanes(), usize::from(size.width)),
         );
-        terminal.draw(|frame| render(frame, history, view, &loading, now))?;
+        terminal.draw(|frame| render(frame, history, view, &loading, identity, now))?;
 
         if let Some(key) = key_pressed(&loading)?
             && let KeyCode::Char(character) = key.code
@@ -122,6 +122,15 @@ fn main() -> ExitCode {
         }
     };
 
+    let identity = match identity(Path::new(".")) {
+        Ok(identity) => identity,
+        Err(message) => {
+            reader.stop();
+            eprintln!("{message}");
+            return ExitCode::FAILURE;
+        }
+    };
+
     let mut history = History::default();
     match first_event(&reader) {
         Loaded::Commits(commits) => commits.into_iter().for_each(|commit| history.push(commit)),
@@ -136,7 +145,7 @@ fn main() -> ExitCode {
     }
 
     let now = clock_seconds();
-    let result = ratatui::run(|terminal| event_loop(terminal, &reader, &mut history, now));
+    let result = ratatui::run(|terminal| event_loop(terminal, &reader, &mut history, &identity, now));
     reader.stop();
 
     match result {
