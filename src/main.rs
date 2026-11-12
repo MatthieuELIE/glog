@@ -8,14 +8,14 @@ use std::{
 
 use clap::Parser;
 use glog::{
-    draw::{max_offset, render, reveal_offset},
+    draw::{max_offset, render},
     history::History,
-    nav::{self, Loading, View, fit, follow, list_height, page, press},
+    nav::{Loading, Step, View, advance, fit, list_height},
     read::{Identity, Loaded, Reader, identity, start},
 };
 use ratatui::{
     DefaultTerminal,
-    crossterm::event::{self, Event, KeyCode},
+    crossterm::event::{self, Event},
 };
 
 const SLOW_START: Duration = Duration::from_millis(500);
@@ -69,16 +69,11 @@ fn event_loop(terminal: &mut DefaultTerminal, reader: &Reader, history: &mut His
         );
         terminal.draw(|frame| render(frame, history, view, &loading, identity, now))?;
 
-        if let Some(key) = key_pressed(&loading)?
-            && let KeyCode::Char(character) = key.code
-        {
-            if nav::quits(character, key.modifiers) {
-                return Ok(());
+        if let Some(key) = key_pressed(&loading)? {
+            match advance(view, key, history, usize::from(size.width), usize::from(size.height)) {
+                Step::Continue(next) => view = next,
+                Step::Quit => return Ok(()),
             }
-            let after = press(view, character, key.modifiers, history.len(), page(usize::from(size.height)));
-            let node_column = history.lane_row(after.selected).node_column as usize;
-            let node_offset = reveal_offset(after.offset, node_column, history.max_lanes(), usize::from(size.width));
-            view = follow(view, after, node_offset);
         }
     }
 }

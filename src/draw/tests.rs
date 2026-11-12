@@ -2,14 +2,14 @@ use ratatui::{
     Terminal,
     backend::TestBackend,
     buffer::Buffer,
-    crossterm::event::KeyModifiers,
+    crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
     style::{Color, Modifier},
 };
 
 use crate::{
     draw::{max_offset, render, reveal_offset},
     history::History,
-    nav::{Loading, View, fit, follow, page, press},
+    nav::{Loading, Step, View, advance, fit, press},
     parse::parse,
     read::Identity,
 };
@@ -46,30 +46,50 @@ fn draw_loading_chords(log: &str, width: u16, height: u16, keys: &[(char, KeyMod
 }
 
 fn draw_identified(log: &str, width: u16, height: u16, keys: &[(char, KeyModifiers)], loading: &Loading, identity: &Identity) -> Buffer {
+    let inputs: Vec<Input> = keys
+        .iter()
+        .map(|&(key, modifiers)| Input::Key(KeyEvent::new(KeyCode::Char(key), modifiers)))
+        .collect();
+
+    draw_inputs_identified(log, width, height, &inputs, loading, identity)
+}
+
+enum Input {
+    Key(KeyEvent),
+    Commits(String),
+}
+
+fn draw_inputs(log: &str, width: u16, height: u16, inputs: &[Input]) -> Buffer {
+    draw_inputs_identified(log, width, height, inputs, &Loading::Done, &Identity::default())
+}
+
+fn draw_inputs_identified(log: &str, width: u16, height: u16, inputs: &[Input], loading: &Loading, identity: &Identity) -> Buffer {
     let mut history = History::default();
-    for commit in parse(log) {
-        history.push(commit);
-    }
+    parse(log).into_iter().for_each(|commit| history.push(commit));
     let mut terminal = Terminal::new(TestBackend::new(width, height + 1)).unwrap();
     let mut view = View::default();
-    let mut frame_after = |view: View| {
+    let mut frame_after = |view: View, history: &History| {
         let view = fit(
             view,
             history.len(),
             usize::from(height),
             max_offset(history.max_lanes(), usize::from(width)),
         );
-        terminal.draw(|frame| render(frame, &history, view, loading, identity, NOW)).unwrap();
+        terminal.draw(|frame| render(frame, history, view, loading, identity, NOW)).unwrap();
 
         view
     };
-    view = frame_after(view);
-    let page = page(usize::from(height) + 1);
-    for &(key, modifiers) in keys {
-        let after = press(view, key, modifiers, history.len(), page);
-        let node_column = history.lane_row(after.selected).node_column as usize;
-        let node_offset = reveal_offset(after.offset, node_column, history.max_lanes(), usize::from(width));
-        view = frame_after(follow(view, after, node_offset));
+    view = frame_after(view, &history);
+    for input in inputs {
+        match input {
+            Input::Key(key) => {
+                if let Step::Continue(next) = advance(view, *key, &history, usize::from(width), usize::from(height) + 1) {
+                    view = next;
+                }
+            }
+            Input::Commits(batch) => parse(batch).into_iter().for_each(|commit| history.push(commit)),
+        }
+        view = frame_after(view, &history);
     }
 
     terminal.backend().buffer().clone()
@@ -1383,4 +1403,33 @@ fn a_move_that_keeps_the_selection_leaves_the_window_where_it_is() {
 
     assert_eq!(draw_after(&log, 24, 7, "llg"), draw_after(&log, 24, 7, "ll"));
     assert_eq!(draw_after(&log, 24, 7, "Gllj"), draw_after(&log, 24, 7, "Gll"));
+}
+
+fn press_key(code: KeyCode) -> Input {
+    Input::Key(KeyEvent::new(code, KeyModifiers::NONE))
+}
+
+#[test]
+fn enter_escape_and_backspace_leave_the_view_as_it_was() {
+    let inputs = [
+        press_key(KeyCode::Char('j')),
+        press_key(KeyCode::Enter),
+        press_key(KeyCode::Esc),
+        press_key(KeyCode::Backspace),
+    ];
+
+    let buffer = draw_inputs(&five_commits(), 40, 5, &inputs);
+
+    assert_eq!(buffer, draw_after(&five_commits(), 40, 5, "j"));
+}
+
+#[test]
+fn a_batch_of_commits_pushed_between_two_keys_joins_the_history() {
+    let batch = line("9999999", "", "", "1913600", "Ann", "pushed");
+    let inputs = [press_key(KeyCode::Char('G')), Input::Commits(batch), press_key(KeyCode::Char('G'))];
+
+    let buffer = draw_inputs(&five_commits(), 60, 5, &inputs);
+
+    assert!(last_row(&buffer).ends_with("6/6"));
+    assert!(row_text(&buffer, 4).contains("pushed"));
 }
