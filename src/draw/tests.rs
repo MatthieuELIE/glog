@@ -1158,3 +1158,37 @@ fn reveal_offset_is_the_closest_offset_that_shows_the_node_whatever_the_geometry
         }
     }
 }
+
+#[test]
+fn h_and_l_can_scroll_the_window_until_the_selected_node_is_hidden() {
+    let log = many_branches_log(6);
+
+    assert_eq!(node_cell(&draw_after(&log, 24, 7, "jj"), 2), Some(2));
+    assert_eq!(node_cell(&draw_after(&log, 24, 7, "jjll"), 2), None);
+    assert_eq!(dimmed_cells(&draw_after(&log, 24, 7, "jjll"), 2, 6), [0, 1]);
+}
+
+#[test]
+fn the_window_stays_where_h_and_l_left_it_while_the_selection_does_not_change() {
+    let log = many_branches_log(6);
+
+    assert_eq!(draw_after(&log, 24, 7, "jjllh"), draw_after(&log, 24, 7, "jjl"));
+    assert_eq!(draw_after(&log, 24, 7, "jjllhl"), draw_after(&log, 24, 7, "jjll"));
+}
+
+#[test]
+fn the_next_change_of_selection_brings_the_node_back_after_h_or_l() {
+    let log = many_branches_log(6);
+
+    assert_node_shown(&draw_after(&log, 24, 7, "jjllj"));
+    assert_node_shown(&draw_after(&log, 24, 7, "jjllk"));
+    assert_node_shown(&draw_after(&log, 24, 7, "lG"));
+}
+
+#[test]
+fn a_move_that_keeps_the_selection_leaves_the_window_where_it_is() {
+    let log = many_branches_log(6);
+
+    assert_eq!(draw_after(&log, 24, 7, "llg"), draw_after(&log, 24, 7, "ll"));
+    assert_eq!(draw_after(&log, 24, 7, "Gllj"), draw_after(&log, 24, 7, "Gll"));
+}
