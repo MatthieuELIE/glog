@@ -8,9 +8,9 @@ use std::{
 
 use clap::Parser;
 use glog::{
-    draw::{max_offset, render},
+    draw::{max_offset, render, reveal_offset},
     history::History,
-    nav::{self, Loading, View, fit, list_height, page, press},
+    nav::{self, Loading, View, fit, follow, list_height, page, press},
     read::{Loaded, Reader, start},
 };
 use ratatui::{
@@ -75,7 +75,10 @@ fn event_loop(terminal: &mut DefaultTerminal, reader: &Reader, history: &mut His
             if nav::quits(character, key.modifiers) {
                 return Ok(());
             }
-            view = press(view, character, key.modifiers, history.len(), page(usize::from(size.height), &loading));
+            let after = press(view, character, key.modifiers, history.len(), page(usize::from(size.height), &loading));
+            let node_column = history.lane_row(after.selected).node_column as usize;
+            let node_offset = reveal_offset(after.offset, node_column, history.max_lanes(), usize::from(size.width));
+            view = follow(view, after, node_offset);
         }
     }
 }
