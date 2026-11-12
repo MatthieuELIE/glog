@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import repos
+import search
 import session
 
 PROJECT = Path(__file__).parent.parent
@@ -20,6 +21,7 @@ KEY_TIMEOUT = 2
 LATENCY_BUDGET_MS = 16
 MEMORY_BUDGET_MB = 250
 FIRST_FRAME_BUDGET_MS = 3000
+ENTER_BUDGET_MS = 200
 
 
 @dataclass
@@ -29,6 +31,7 @@ class Measure:
     latencies_ms: list[float]
     timed_out: bool
     memory_mb: float
+    searches: list[tuple[str, float | None]]
 
 
 def percentile_95(values):
@@ -51,7 +54,33 @@ def report(measure):
         f"loading done  {measure.loaded_ms:.1f} ms",
         latency_line(measure),
         f"memory        {measure.memory_mb:.0f} MB",
-    ]
+    ] + search_lines(measure.searches)
+
+
+def search_lines(timings):
+    if not timings:
+        return []
+
+    timed = [(name, ms) for name, ms in timings if ms is not None]
+    enters = ", ".join(f"{ms:.1f}" for name, ms in timed if name == "Enter")
+    slowest = max((ms for name, ms in timed if name != "Enter"), default=0)
+    lines = [f"search Enter  {enters} ms", f"search keys   slowest {slowest:.1f} ms over {len(timed)} keys"]
+    if timings[-1][1] is None:
+        lines.append(f"search keys   > {search.KEY_TIMEOUT * 1000} ms on {timings[-1][0]}")
+
+    return lines
+
+
+def search_over_budget(timings):
+    failures = []
+    for name, ms in timings:
+        budget = ENTER_BUDGET_MS if name == "Enter" else LATENCY_BUDGET_MS
+        if ms is None:
+            failures.append(f"search key {name} got no frame within {search.KEY_TIMEOUT * 1000} ms")
+        elif ms >= budget:
+            failures.append(f"search key {name} took {ms:.1f} ms, over {budget} ms")
+
+    return failures
 
 
 def over_budget(measure):
@@ -65,7 +94,7 @@ def over_budget(measure):
     if measure.memory_mb >= MEMORY_BUDGET_MB:
         failures.append(f"memory over {MEMORY_BUDGET_MB} MB")
 
-    return failures
+    return failures + search_over_budget(measure.searches)
 
 
 def press_keys(master, end):
@@ -105,9 +134,13 @@ def measure(repo, end):
     session.drain(master, 0.3)
     latencies_ms, timed_out = press_keys(master, end)
     memory_mb = session.memory(process)
+    searches = []
+    if not end and not timed_out:
+        searches = search.play(master)
+
     session.stop(process, master)
 
-    return Measure(first_frame_ms, loaded_ms, latencies_ms, timed_out, memory_mb)
+    return Measure(first_frame_ms, loaded_ms, latencies_ms, timed_out, memory_mb, searches)
 
 
 def arguments():
@@ -140,4 +173,5 @@ def main():
             sys.exit("\n".join(failures))
 
 
-main()
+if __name__ == "__main__":
+    main()
