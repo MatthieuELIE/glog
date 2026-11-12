@@ -482,27 +482,65 @@ fn badge_log(refs: &str) -> String {
     line("aaaaaaa", "", refs, "1913600", "Ann", "subject")
 }
 
-fn colour_at(buffer: &Buffer, y: u16, text: &str) -> Color {
+const BASE: Color = Color::Rgb(0x1e, 0x1e, 0x2e);
+const TEXT: Color = Color::Rgb(0xcd, 0xd6, 0xf4);
+const SUBTEXT: Color = Color::Rgb(0xa6, 0xad, 0xc8);
+
+fn column_of(buffer: &Buffer, y: u16, text: &str) -> u16 {
     let row = row_text(buffer, y);
     let x = row.find(text).unwrap_or_else(|| panic!("{text} not in {row}"));
 
-    buffer[(row[..x].chars().count() as u16, y)].fg
+    row[..x].chars().count() as u16
+}
+
+fn cell_at<'a>(buffer: &'a Buffer, y: u16, text: &str) -> &'a ratatui::buffer::Cell {
+    &buffer[(column_of(buffer, y, text), y)]
+}
+
+fn colour_at(buffer: &Buffer, y: u16, text: &str) -> Color {
+    cell_at(buffer, y, text).fg
 }
 
 #[test]
-fn shows_the_refs_of_a_commit_as_badges_before_its_message() {
+fn shows_the_refs_of_a_commit_as_pills_before_its_message() {
     let log = badge_log("HEAD -> refs/heads/main, refs/remotes/origin/main, refs/remotes/origin/HEAD, tag: refs/tags/v1.0");
 
     let buffer = draw(&log, 80, 1);
 
     assert_eq!(
         row_text(&buffer, 0).trim_end(),
-        "○ aaaaaaa 1d   Ann             [HEAD] [main] [origin/main] [◆ v1.0] subject"
+        "○ aaaaaaa 1d   Ann              HEAD   main   origin/main   ◆ v1.0  subject"
     );
 }
 
 #[test]
-fn colours_a_local_branch_badge_in_the_lane_colour_of_its_commit() {
+fn paints_a_pill_on_its_name_between_two_spaces_and_leaves_the_separator_unpainted() {
+    let log = [line("bbbbbbb", "aaaaaaa", "", "1913600", "Ann", "child"), badge_log("refs/heads/main, refs/remotes/origin/main")].join("\n");
+    let buffer = draw(&log, 80, 2);
+
+    let start = column_of(&buffer, 1, " main ");
+    let backgrounds: Vec<Color> = (start..start + 6).map(|x| buffer[(x, 1)].bg).collect();
+    assert!(backgrounds.iter().all(|bg| *bg == backgrounds[0] && *bg != Color::Reset));
+    assert_eq!(buffer[(start + 6, 1)].bg, Color::Reset);
+    assert_eq!(buffer[(start + 7, 1)].bg, SURFACE1);
+    let end = column_of(&buffer, 1, "origin/main ") + 11;
+    assert_eq!(buffer[(end, 1)].bg, SURFACE1);
+    assert_eq!(buffer[(end + 1, 1)].bg, Color::Reset);
+}
+
+#[test]
+fn keeps_the_pill_background_on_the_selected_row() {
+    let log = badge_log("refs/heads/main, refs/remotes/origin/main, tag: refs/tags/v1.0");
+    let buffer = draw(&log, 80, 1);
+
+    assert_eq!(cell_at(&buffer, 0, "main").bg, MAUVE);
+    assert_eq!(cell_at(&buffer, 0, "origin/main").bg, SURFACE1);
+    assert_eq!(cell_at(&buffer, 0, "v1.0").bg, YELLOW);
+    assert_eq!(buffer[(79, 0)].bg, SURFACE1);
+}
+
+#[test]
+fn colours_a_local_branch_pill_in_the_lane_colour_of_its_commit_with_dark_text() {
     let log = [
         line("ccccccc", "bbbbbbb", "", "1913600", "Ann", "c"),
         line("bbbbbbb", "aaaaaaa", "", "1913600", "Ann", "b"),
@@ -513,34 +551,45 @@ fn colours_a_local_branch_badge_in_the_lane_colour_of_its_commit() {
 
     let buffer = draw(&log, 60, 4);
 
-    assert_eq!(colour_at(&buffer, 2, "[side]"), BLUE);
+    let pill = cell_at(&buffer, 2, "side");
+    assert_eq!(pill.bg, BLUE);
+    assert_eq!(pill.fg, BASE);
 }
 
 #[test]
-fn dims_a_remote_branch_badge() {
-    let buffer = draw(&badge_log("refs/remotes/origin/main"), 80, 1);
+fn colours_a_remote_branch_pill_in_surface1_with_subtext() {
+    let log = [line("bbbbbbb", "aaaaaaa", "", "1913600", "Ann", "child"), badge_log("refs/remotes/origin/main")].join("\n");
+    let buffer = draw(&log, 80, 2);
 
-    assert_eq!(colour_at(&buffer, 0, "[origin/main]"), Color::Rgb(0x6c, 0x70, 0x86));
+    let pill = cell_at(&buffer, 1, "origin/main");
+    assert_eq!(pill.bg, SURFACE1);
+    assert_eq!(pill.fg, SUBTEXT);
 }
 
 #[test]
-fn colours_a_tag_badge_in_yellow() {
+fn colours_a_tag_pill_in_yellow_with_dark_text_and_keeps_its_diamond() {
     let buffer = draw(&badge_log("tag: refs/tags/v1.0"), 80, 1);
 
-    assert_eq!(colour_at(&buffer, 0, "[◆ v1.0]"), YELLOW);
+    let pill = cell_at(&buffer, 0, "◆ v1.0");
+    assert_eq!(pill.bg, YELLOW);
+    assert_eq!(pill.fg, BASE);
+    assert_eq!(cell_at(&buffer, 0, "v1.0").bg, YELLOW);
+}
+
+fn is_bold(buffer: &Buffer, y: u16, text: &str) -> bool {
+    cell_at(buffer, y, text).modifier.contains(ratatui::style::Modifier::BOLD)
 }
 
 #[test]
-fn highlights_head_on_a_branch_and_detached() {
-    let on_branch = draw(&badge_log("HEAD -> refs/heads/main"), 80, 1);
-    let detached = draw(&badge_log("HEAD"), 80, 1);
+fn shows_a_detached_head_as_a_bold_light_pill_with_dark_text() {
+    let buffer = draw(&badge_log("refs/heads/zeta, HEAD"), 80, 1);
 
-    for buffer in [&on_branch, &detached] {
-        let x = row_text(buffer, 0).find("[HEAD]").unwrap() as u16;
-        assert!(buffer[(x, 0)].modifier.contains(ratatui::style::Modifier::BOLD));
-        assert_eq!(buffer[(x, 0)].fg, Color::Rgb(0xcd, 0xd6, 0xf4));
-    }
-    assert!(!row_text(&detached, 0).contains("[main]"));
+    assert!(column_of(&buffer, 0, "HEAD") < column_of(&buffer, 0, "zeta"));
+    let pill = cell_at(&buffer, 0, "HEAD");
+    assert!(row_text(&buffer, 0).starts_with("○ "));
+    assert!(is_bold(&buffer, 0, "HEAD"));
+    assert_eq!(pill.bg, TEXT);
+    assert_eq!(pill.fg, BASE);
 }
 
 #[test]
@@ -551,22 +600,25 @@ fn gives_origin_head_no_badge() {
 }
 
 #[test]
-fn leaves_the_terminal_background_unpainted_under_badges() {
+fn leaves_the_terminal_background_unpainted_around_pills() {
     let log = [
         line("bbbbbbb", "aaaaaaa", "", "1913600", "Ann", "child"),
-        badge_log("HEAD -> refs/heads/main, tag: refs/tags/v1.0"),
+        badge_log("refs/heads/main, tag: refs/tags/v1.0"),
     ]
     .join("\n");
     let buffer = draw(&log, 80, 2);
 
-    assert!((0..80).all(|x| buffer[(x, 1)].bg == Color::Reset));
+    let first_pill = column_of(&buffer, 1, " main ");
+    let subject = column_of(&buffer, 1, "subject");
+    assert!((0..first_pill).all(|x| buffer[(x, 1)].bg == Color::Reset));
+    assert!((subject..80).all(|x| buffer[(x, 1)].bg == Color::Reset));
 }
 
 #[test]
-fn truncates_the_message_after_the_badges_in_a_narrow_terminal() {
+fn truncates_the_message_after_the_pills_in_a_narrow_terminal() {
     let buffer = draw(&badge_log("refs/heads/main"), 43, 1);
 
-    assert_eq!(row_text(&buffer, 0), "● aaaaaaa 1d   Ann             [main] subj…");
+    assert_eq!(row_text(&buffer, 0), "● aaaaaaa 1d   Ann              main  subj…");
 }
 
 #[test]
@@ -605,14 +657,14 @@ fn a_merge_parent_takes_the_column_freed_by_a_lane_ending_on_the_same_row() {
 }
 
 #[test]
-fn orders_badges_head_then_local_then_remote_then_tags_keeping_git_order_within_a_kind() {
-    let log = badge_log("tag: refs/tags/v1, refs/remotes/origin/feature/a, refs/heads/zeta, refs/heads/feature/a, HEAD");
+fn orders_pills_head_then_local_then_remote_then_tags_keeping_git_order_within_a_kind() {
+    let log = badge_log("tag: refs/tags/v1, refs/remotes/origin/feature/a, refs/heads/zeta, refs/heads/feature/a, HEAD -> refs/heads/main");
 
     let buffer = draw(&log, 100, 1);
 
     assert_eq!(
         row_text(&buffer, 0).trim_end(),
-        "○ aaaaaaa 1d   Ann             [HEAD] [zeta] [feature/a] [origin/feature/a] [◆ v1] subject"
+        "○ aaaaaaa 1d   Ann              HEAD   zeta   feature/a   main   origin/feature/a   ◆ v1  subject"
     );
 }
 

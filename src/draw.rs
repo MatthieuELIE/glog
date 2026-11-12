@@ -3,7 +3,7 @@ use ratatui::{
     layout::{Constraint, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{List, ListState, Paragraph},
+    widgets::{List, ListItem, Paragraph},
 };
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
@@ -13,7 +13,7 @@ use crate::{
     lanes::{Cell, advance, cells},
     nav::{Loading, View},
     parse::{Ref, RefKind},
-    theme::{LANE_COLORS, LAVENDER, OVERLAY, RED, SUBTEXT, SURFACE1, TEXT, YELLOW},
+    theme::{BASE, LANE_COLORS,LAVENDER, OVERLAY, RED, SUBTEXT, SURFACE1, TEXT, YELLOW},
 };
 
 const DATE_WIDTH: usize = 4;
@@ -101,17 +101,17 @@ fn graph_spans(cells: &[Cell], offset: usize, graph_width: usize, window_width: 
 
 fn badge_style(reference: &Ref, node_color: u32) -> Style {
     match reference.kind {
-        RefKind::Head => Style::new().fg(TEXT).add_modifier(Modifier::BOLD),
-        RefKind::Local => Style::new().fg(lane_color(node_color)),
-        RefKind::Remote => Style::new().fg(OVERLAY),
-        RefKind::Tag => Style::new().fg(YELLOW),
+        RefKind::Head => Style::new().fg(BASE).bg(TEXT).add_modifier(Modifier::BOLD),
+        RefKind::Local => Style::new().fg(BASE).bg(lane_color(node_color)),
+        RefKind::Remote => Style::new().fg(SUBTEXT).bg(SURFACE1),
+        RefKind::Tag => Style::new().fg(BASE).bg(YELLOW),
     }
 }
 
 fn badge_label(reference: &Ref) -> String {
     match reference.kind {
-        RefKind::Tag => format!("[◆ {}]", reference.name),
-        _ => format!("[{}]", reference.name),
+        RefKind::Tag => format!(" ◆ {} ", reference.name),
+        _ => format!(" {} ", reference.name),
     }
 }
 
@@ -173,19 +173,20 @@ pub fn render(frame: &mut Frame, history: &History, view: View, loading: &Loadin
     let drawn_cells = window_width.min(graph_width.saturating_sub(view.offset * CELLS_PER_LANE));
 
     let mut lanes = history.lanes_before(view.top);
-    let mut lines = Vec::new();
+    let mut items = Vec::new();
     for row in visible {
         let lane_row = history.lane_row(row);
         let cells = cells(&lanes, &lane_row, is_head(history.refs(row)), view.offset, drawn_cells);
         let graph = graph_spans(&cells, view.offset, graph_width, window_width);
-        lines.push(commit_line(history, row, graph, lane_row.color, now, message_width));
+        let mut item = ListItem::new(commit_line(history, row, graph, lane_row.color, now, message_width));
+        if row == view.selected {
+            item = item.style(Style::new().bg(SURFACE1));
+        }
+        items.push(item);
         lanes = advance(lanes, &lane_row);
     }
 
-    let list = List::new(lines).highlight_style(Style::new().bg(SURFACE1));
-    let mut state = ListState::default().with_selected(Some(view.selected.saturating_sub(view.top)));
-
-    frame.render_stateful_widget(list, list_area, &mut state);
+    frame.render_widget(List::new(items), list_area);
 }
 
 #[cfg(test)]
