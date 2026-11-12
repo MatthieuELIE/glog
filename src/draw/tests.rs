@@ -1650,6 +1650,45 @@ fn the_navigation_keys_are_characters_of_the_query_during_the_input() {
 }
 
 #[test]
+fn backspace_erases_the_last_character_of_the_input() {
+    let inputs = [typed("/abc"), vec![press_key(KeyCode::Backspace)]].concat();
+
+    let buffer = draw_inputs(&five_commits(), 40, 5, &inputs);
+
+    assert!(last_row(&buffer).starts_with("/ab "));
+    assert_eq!(cursor_after(&five_commits(), 40, 5, &inputs), Some((3, 5)));
+}
+
+#[test]
+fn backspace_corrects_the_query_before_enter() {
+    let inputs = [
+        typed("/commit x"),
+        vec![press_key(KeyCode::Backspace)],
+        typed("c"),
+        vec![press_key(KeyCode::Enter)],
+    ]
+    .concat();
+
+    assert_eq!(highlighted_rows(&draw_inputs(&five_commits(), 60, 5, &inputs)), vec![2]);
+}
+
+#[test]
+fn backspace_on_an_empty_input_closes_it() {
+    let inputs = [typed("/"), vec![press_key(KeyCode::Backspace)]].concat();
+
+    let buffer = draw_inputs(&five_commits(), 40, 5, &inputs);
+
+    assert_eq!(last_row(&buffer).trim(), "1/5");
+}
+
+#[test]
+fn backspace_outside_the_input_does_nothing() {
+    let buffer = draw_inputs(&five_commits(), 40, 5, &[press_key(KeyCode::Backspace)]);
+
+    assert_eq!(buffer, draw(&five_commits(), 40, 5));
+}
+
+#[test]
 fn opening_the_input_keeps_the_list_height_and_the_half_page() {
     let log = twelve_commits();
     let list = |buffer: &Buffer| (0..12).map(|y| row_text(buffer, y)).collect::<Vec<_>>();

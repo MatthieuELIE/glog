@@ -152,31 +152,30 @@ fn submit(session: Session, input: String, history: &History, terminal_width: us
     }
 }
 
+fn edit(input: String, key: KeyEvent) -> Option<String> {
+    if key.code == KeyCode::Backspace {
+        let mut kept = input.chars();
+
+        return kept.next_back().map(|_| kept.collect());
+    }
+
+    match key.code {
+        KeyCode::Char(character) if !key.modifiers.contains(KeyModifiers::CONTROL) => Some(format!("{input}{character}")),
+        _ => Some(input),
+    }
+}
+
 fn type_in(session: Session, input: String, key: KeyEvent, history: &History, terminal_width: usize) -> Step {
     if key.code == KeyCode::Enter {
         return Step::Continue(submit(session, input, history, terminal_width));
     }
 
-    let KeyCode::Char(character) = key.code else {
-        return Step::Continue(Session {
-            input: Some(input),
-            ..session
-        });
-    };
-
-    if character == 'c' && key.modifiers.contains(KeyModifiers::CONTROL) {
+    if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
         return Step::Quit;
     }
 
-    if key.modifiers.contains(KeyModifiers::CONTROL) {
-        return Step::Continue(Session {
-            input: Some(input),
-            ..session
-        });
-    }
-
     Step::Continue(Session {
-        input: Some(format!("{input}{character}")),
+        input: edit(input, key),
         ..session
     })
 }
