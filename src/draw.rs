@@ -14,6 +14,7 @@ use crate::{
     nav::{Loading, Session},
     parse::{Ref, RefKind},
     read::Identity,
+    search::Search,
     theme::{BASE, LANE_COLORS, OVERLAY, RED, SUBTEXT, SURFACE0, SURFACE1, TEXT, YELLOW},
 };
 
@@ -247,12 +248,15 @@ fn identity_spans(identity: &Identity, width: usize, tail_width: usize) -> Vec<S
     spans
 }
 
-fn status_line(identity: &Identity, rank: usize, total: usize, loading: &Loading, width: usize) -> Line<'static> {
+fn status_line(identity: &Identity, rank: usize, total: usize, loading: &Loading, width: usize, reserved: usize) -> Line<'static> {
     if let Loading::Failed(message) = loading {
         let first_line = message.lines().next().unwrap_or_default();
-        let mut spans = identity_spans(identity, width, first_line.width());
-        let room = width.saturating_sub(spans.iter().map(Span::width).sum());
+        let mut spans = identity_spans(identity, width, first_line.width() + reserved);
+        let room = width.saturating_sub(spans.iter().map(Span::width).sum::<usize>() + reserved);
         spans.push(Span::styled(truncate(first_line, room), Style::new().fg(RED)));
+        if reserved > 0 {
+            return Line::from(spans).right_aligned();
+        }
 
         return Line::from(spans);
     }
@@ -261,14 +265,54 @@ fn status_line(identity: &Identity, rank: usize, total: usize, loading: &Loading
     if matches!(loading, Loading::Reading) {
         position.push(ELLIPSIS);
     }
-    let mut spans = identity_spans(identity, width, position.width());
+    let mut spans = identity_spans(identity, width, position.width() + reserved);
     spans.push(Span::styled(position, Style::new().fg(OVERLAY)));
 
     Line::from(spans).right_aligned()
 }
 
-fn input_line(input: &str, room: usize) -> Line<'static> {
-    Line::from(Span::styled(truncate(&format!("/{input}"), room), Style::new().fg(TEXT)))
+struct Left {
+    query: String,
+    counter: Option<String>,
+}
+
+fn counter(search: &Search, selected: usize) -> String {
+    let total = thousands(search.matches.len());
+    match search.matches.binary_search(&selected) {
+        Ok(index) => format!("{}/{total}", thousands(index + 1)),
+        Err(_) => total,
+    }
+}
+
+fn left_of(session: &Session) -> Option<Left> {
+    if let Some(input) = &session.input {
+        return Some(Left {
+            query: format!("/{input}"),
+            counter: None,
+        });
+    }
+
+    let search = session.search.as_ref()?;
+
+    Some(Left {
+        query: format!("/{}", search.query),
+        counter: Some(counter(search, session.view.selected)),
+    })
+}
+
+fn counter_width(left: &Left) -> usize {
+    left.counter.as_ref().map_or(0, |counter| STATUS_SEPARATOR.width() + counter.width())
+}
+
+fn left_line(left: &Left, room: usize) -> Line<'static> {
+    let query = truncate(&left.query, room.saturating_sub(counter_width(left)));
+    let mut spans = vec![Span::styled(query, Style::new().fg(TEXT))];
+    if let Some(counter) = &left.counter {
+        spans.push(Span::raw(STATUS_SEPARATOR));
+        spans.push(Span::styled(counter.clone(), Style::new().fg(OVERLAY)));
+    }
+
+    Line::from(spans)
 }
 
 pub fn render(frame: &mut Frame, history: &History, session: &Session, loading: &Loading, identity: &Identity, now: i64) {
@@ -276,12 +320,18 @@ pub fn render(frame: &mut Frame, history: &History, session: &Session, loading: 
     let full = frame.area();
     let [list_area, status_area] = Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]).areas(full);
     let rank = (view.selected + 1).min(history.len());
-    let status = status_line(identity, rank, history.len(), loading, usize::from(full.width));
-    if let Some(input) = &session.input {
+    let left = left_of(session);
+    let reserved = left
+        .as_ref()
+        .map_or(0, |left| left.query.width() + counter_width(left) + STATUS_SEPARATOR.width());
+    let status = status_line(identity, rank, history.len(), loading, usize::from(full.width), reserved);
+    if let Some(left) = &left {
         let room = usize::from(full.width).saturating_sub(status.width() + STATUS_SEPARATOR.width());
-        let left = input_line(input, room);
-        frame.set_cursor_position((status_area.x + u16::try_from(left.width()).unwrap_or(u16::MAX), status_area.y));
-        frame.render_widget(Paragraph::new(left), status_area);
+        let line = left_line(left, room);
+        if session.input.is_some() {
+            frame.set_cursor_position((status_area.x + u16::try_from(line.width()).unwrap_or(u16::MAX), status_area.y));
+        }
+        frame.render_widget(Paragraph::new(line), status_area);
     }
     frame.render_widget(Paragraph::new(status), status_area);
 

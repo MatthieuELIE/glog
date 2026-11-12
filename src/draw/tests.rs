@@ -1592,7 +1592,7 @@ fn a_search_without_match_leaves_the_selection_in_place() {
     let buffer = draw_inputs(&five_commits(), 60, 5, &inputs);
 
     assert_eq!(highlighted_rows(&buffer), vec![2]);
-    assert_eq!(last_row(&buffer).trim(), "3/5");
+    assert!(last_row(&buffer).ends_with("3/5"));
 }
 
 #[test]
@@ -1627,7 +1627,7 @@ fn the_cursor_sits_after_the_last_typed_character() {
 fn the_input_closes_after_enter() {
     let buffer = searched(&five_commits(), 5, "commit c");
 
-    assert_eq!(last_row(&buffer).trim(), "3/5");
+    assert!(last_row(&buffer).ends_with("3/5"));
 }
 
 #[test]
@@ -1878,4 +1878,127 @@ fn capital_n_walks_the_matches_of_the_previous_search_after_an_abandoned_input()
     let inputs = [searching("Bob"), typed("/zzz"), vec![press_key(KeyCode::Esc)], typed("N")].concat();
 
     assert_eq!(highlighted_rows(&draw_inputs(&bob_on_rows_one_and_three(), 60, 5, &inputs)), vec![3]);
+}
+
+fn status_after(log: &str, width: u16, inputs: &[Input], identity: &Identity) -> String {
+    last_row(&draw_inputs_identified(log, width, 5, inputs, &Loading::Done, identity))
+}
+
+fn bob_search() -> Vec<Input> {
+    searching("Bob")
+}
+
+#[test]
+fn an_active_search_shows_its_query_and_its_rank_on_the_left_of_the_status_line() {
+    let status = status_after(&bob_on_rows_one_and_three(), 40, &bob_search(), &Identity::default());
+
+    assert_eq!(status, format!("/Bob  1/2{}2/5", " ".repeat(28)));
+}
+
+#[test]
+fn the_counter_shows_the_total_alone_when_the_selection_is_not_a_match() {
+    let inputs = [bob_search(), typed("j")].concat();
+
+    let status = status_after(&bob_on_rows_one_and_three(), 40, &inputs, &Identity::default());
+
+    assert!(status.starts_with("/Bob  2  "), "{status}");
+}
+
+#[test]
+fn the_counter_follows_the_selection_across_the_matches() {
+    let inputs = [bob_search(), typed("n")].concat();
+
+    let status = status_after(&bob_on_rows_one_and_three(), 40, &inputs, &Identity::default());
+
+    assert!(status.starts_with("/Bob  2/2  "), "{status}");
+}
+
+#[test]
+fn the_counter_groups_thousands_like_the_position() {
+    let log = (0..1500)
+        .map(|row| commit(&format!("{row:08x}"), "", "Ann", "same"))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let status = status_after(&log, 60, &searching("same"), &Identity::default());
+
+    assert!(status.starts_with("/same  2/1,500"), "{status}");
+}
+
+#[test]
+fn the_search_shares_the_line_with_the_repository_the_branch_and_the_position() {
+    let status = status_after(&bob_on_rows_one_and_three(), 40, &bob_search(), &glog_main());
+
+    assert_eq!(status, format!("/Bob  1/2{}glog   main   2/5", " ".repeat(14)));
+}
+
+#[test]
+fn a_search_keeps_the_list_height() {
+    let log = twelve_commits();
+    let list = |buffer: &Buffer| (0..12).map(|y| row_text(buffer, y)).collect::<Vec<_>>();
+    let before = draw_inputs(&log, 60, 12, &[]);
+
+    let after = draw_inputs(&log, 60, 12, &searching("commit"));
+
+    assert_eq!(after.area.height, before.area.height);
+    assert_eq!(list(&before)[11], list(&after)[11]);
+}
+
+#[test]
+fn the_total_with_an_ellipsis_stays_on_the_right_while_loading_during_a_search() {
+    let buffer = draw_inputs_identified(
+        &bob_on_rows_one_and_three(),
+        40,
+        5,
+        &bob_search(),
+        &Loading::Reading,
+        &Identity::default(),
+    );
+
+    assert_eq!(last_row(&buffer), format!("/Bob  1/2{}2/5…", " ".repeat(27)));
+}
+
+#[test]
+fn the_failure_message_stays_on_the_right_during_a_search() {
+    let failed = Loading::Failed("fatal: bad".to_string());
+
+    let buffer = draw_inputs_identified(&bob_on_rows_one_and_three(), 40, 5, &bob_search(), &failed, &Identity::default());
+
+    assert_eq!(last_row(&buffer), format!("/Bob  1/2{}fatal: bad", " ".repeat(21)));
+}
+
+#[test]
+fn ctrl_d_and_ctrl_u_keep_the_same_half_page_during_a_search() {
+    let log = twelve_commits();
+    let ctrl = |key| Input::Key(KeyEvent::new(KeyCode::Char(key), KeyModifiers::CONTROL));
+    let down = [searching("commit"), vec![ctrl('d')]].concat();
+    let back = [down.clone(), vec![ctrl('u')]].concat();
+
+    assert_eq!(highlighted_rows(&draw_inputs(&log, 60, 12, &down)), vec![7]);
+    assert_eq!(highlighted_rows(&draw_inputs(&log, 60, 12, &back)), vec![1]);
+}
+
+#[test]
+fn a_narrow_terminal_drops_the_repository_then_the_branch_before_the_query_shrinks() {
+    let log = bob_on_rows_one_and_three();
+    let identity = glog_main();
+    let status = |width| status_after(&log, width, &bob_search(), &identity);
+
+    assert_eq!(status(28), "/Bob  1/2  glog   main   2/5");
+    assert_eq!(status(27), format!("/Bob  1/2{} main   2/5", " ".repeat(7)));
+    assert_eq!(status(22), "/Bob  1/2   main   2/5");
+    assert_eq!(status(21), format!("/Bob  1/2{}2/5", " ".repeat(9)));
+    assert_eq!(status(14), "/Bob  1/2  2/5");
+    assert_eq!(status(13), "/B…  1/2  2/5");
+    assert_eq!(status(11), "…  1/2  2/5");
+}
+
+#[test]
+fn an_abandoned_input_gives_the_left_back_to_the_previous_search() {
+    let log = bob_on_rows_one_and_three();
+    let abandoned = [bob_search(), typed("/Ann"), vec![press_key(KeyCode::Esc)]].concat();
+
+    let status = status_after(&log, 40, &abandoned, &Identity::default());
+
+    assert_eq!(status, status_after(&log, 40, &bob_search(), &Identity::default()));
 }
