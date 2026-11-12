@@ -76,6 +76,17 @@ pub fn scan(history: &History, query: &str) -> Search {
     }
 }
 
+pub fn complete(search: Search, history: &History) -> Search {
+    let mut matches = search.matches;
+    matches.extend((search.scanned..history.len()).filter(|&row| is_match(history, row, &search.query)));
+
+    Search {
+        matches,
+        scanned: history.len(),
+        ..search
+    }
+}
+
 pub fn next_after(matches: &[usize], selected: usize) -> Option<usize> {
     matches.iter().copied().find(|&row| row > selected).or(matches.first().copied())
 }
