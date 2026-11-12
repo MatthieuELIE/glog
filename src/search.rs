@@ -48,3 +48,7 @@ pub fn scan(history: &History, query: &str) -> Search {
 pub fn next_after(matches: &[usize], selected: usize) -> Option<usize> {
     matches.iter().copied().find(|&row| row > selected).or(matches.first().copied())
 }
+
+pub fn previous_before(matches: &[usize], selected: usize) -> Option<usize> {
+    matches.iter().copied().rfind(|&row| row < selected).or(matches.last().copied())
+}
