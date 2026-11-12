@@ -24,6 +24,7 @@ const SEPARATORS_WIDTH: usize = 4;
 const CELLS_PER_LANE: usize = 2;
 const ELLIPSIS: char = '…';
 const STATUS_SEPARATOR: &str = "  ";
+const NO_MATCH: &str = "no match";
 const EDGE_CELLS: usize = 2;
 const MIN_DIMMED_WINDOW: usize = 5;
 
@@ -273,14 +274,18 @@ fn status_line(identity: &Identity, rank: usize, total: usize, loading: &Loading
 
 struct Left {
     query: String,
-    counter: Option<String>,
+    counter: Option<(String, Color)>,
 }
 
-fn counter(search: &Search, selected: usize) -> String {
+fn counter(search: &Search, selected: usize) -> (String, Color) {
+    if search.matches.is_empty() {
+        return (NO_MATCH.to_string(), RED);
+    }
+
     let total = thousands(search.matches.len());
     match search.matches.binary_search(&selected) {
-        Ok(index) => format!("{}/{total}", thousands(index + 1)),
-        Err(_) => total,
+        Ok(index) => (format!("{}/{total}", thousands(index + 1)), OVERLAY),
+        Err(_) => (total, OVERLAY),
     }
 }
 
@@ -301,15 +306,15 @@ fn left_of(session: &Session) -> Option<Left> {
 }
 
 fn counter_width(left: &Left) -> usize {
-    left.counter.as_ref().map_or(0, |counter| STATUS_SEPARATOR.width() + counter.width())
+    left.counter.as_ref().map_or(0, |(counter, _)| STATUS_SEPARATOR.width() + counter.width())
 }
 
 fn left_line(left: &Left, room: usize) -> Line<'static> {
     let query = truncate(&left.query, room.saturating_sub(counter_width(left)));
     let mut spans = vec![Span::styled(query, Style::new().fg(TEXT))];
-    if let Some(counter) = &left.counter {
+    if let Some((counter, color)) = &left.counter {
         spans.push(Span::raw(STATUS_SEPARATOR));
-        spans.push(Span::styled(counter.clone(), Style::new().fg(OVERLAY)));
+        spans.push(Span::styled(counter.clone(), Style::new().fg(*color)));
     }
 
     Line::from(spans)
