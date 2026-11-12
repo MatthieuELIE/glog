@@ -3,7 +3,7 @@ mod common;
 use common::TempDir;
 use glog::{
     parse::{Commit, RefKind},
-    read::{Loaded, start},
+    read::{Identity, Loaded, identity, start},
 };
 use std::path::Path;
 
@@ -179,4 +179,97 @@ fn stopping_the_reader_closes_the_channel_without_done() {
     let rest: Vec<_> = reader.events.iter().collect();
 
     assert!(rest.iter().all(|event| matches!(event, Loaded::Commits(_))));
+}
+
+fn identity_of(dir: &Path) -> Identity {
+    identity(dir).unwrap()
+}
+
+fn folder_name(dir: &Path) -> String {
+    dir.file_name().unwrap().to_string_lossy().into_owned()
+}
+
+#[test]
+fn reads_the_folder_name_and_the_branch_of_a_repository() {
+    let dir = TempDir::new();
+    dir.git(&["init", "-q", "-b", "main"]);
+
+    let found = identity_of(dir.path());
+
+    assert_eq!(found.name, folder_name(dir.path()));
+    assert_eq!(found.branch, "main");
+}
+
+#[test]
+fn reads_the_root_name_from_a_subfolder() {
+    let dir = TempDir::new();
+    dir.git(&["init", "-q", "-b", "main"]);
+    let sub = dir.path().join("a").join("b");
+    std::fs::create_dir_all(&sub).unwrap();
+
+    assert_eq!(identity_of(&sub).name, folder_name(dir.path()));
+}
+
+#[test]
+fn reads_the_main_repository_name_from_a_linked_worktree() {
+    let dir = TempDir::new();
+    dir.git(&["init", "-q", "-b", "main"]);
+    dir.git(&["commit", "-q", "--allow-empty", "-m", "first"]);
+    let linked = TempDir::new();
+    let path = linked.path().join("linked-folder");
+    dir.git(&["worktree", "add", "-q", "-b", "side", path.to_str().unwrap()]);
+
+    let found = identity_of(&path);
+
+    assert_eq!(found.name, folder_name(dir.path()));
+    assert_eq!(found.branch, "side");
+}
+
+#[test]
+fn reads_a_bare_repository_name_without_its_git_suffix() {
+    let dir = TempDir::new();
+    let bare = dir.path().join("foo.git");
+    dir.git(&["init", "-q", "--bare", "-b", "main", bare.to_str().unwrap()]);
+
+    let found = identity_of(&bare);
+
+    assert_eq!(found.name, "foo");
+    assert_eq!(found.branch, "main");
+}
+
+#[test]
+fn reads_the_first_seven_characters_of_the_hash_of_a_detached_head() {
+    let dir = TempDir::new();
+    dir.git(&["init", "-q", "-b", "main"]);
+    dir.git(&["commit", "-q", "--allow-empty", "-m", "first"]);
+    dir.git(&["tag", "v1"]);
+    dir.git(&["checkout", "-q", "--detach"]);
+    let output = std::process::Command::new("git")
+        .current_dir(dir.path())
+        .args(["rev-parse", "HEAD"])
+        .env_remove("GIT_DIR")
+        .output()
+        .unwrap();
+    let hash = String::from_utf8(output.stdout).unwrap();
+
+    assert_eq!(identity_of(dir.path()).branch, hash[..7]);
+}
+
+#[test]
+fn reads_the_name_of_a_branch_without_commit_while_other_refs_have_some() {
+    let dir = TempDir::new();
+    dir.git(&["init", "-q", "-b", "main"]);
+    dir.git(&["commit", "-q", "--allow-empty", "-m", "first"]);
+    dir.git(&["switch", "-q", "--orphan", "fresh"]);
+
+    assert_eq!(identity_of(dir.path()).branch, "fresh");
+}
+
+#[test]
+fn reading_the_identity_outside_a_repository_gives_gits_message() {
+    let dir = TempDir::new();
+
+    let message = identity(dir.path()).unwrap_err();
+
+    assert!(message.contains("not a git repository"));
 }

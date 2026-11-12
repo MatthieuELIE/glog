@@ -1,10 +1,17 @@
-use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, crossterm::event::KeyModifiers, style::Color};
+use ratatui::{
+    Terminal,
+    backend::TestBackend,
+    buffer::Buffer,
+    crossterm::event::KeyModifiers,
+    style::{Color, Modifier},
+};
 
 use crate::{
     draw::{max_offset, render, reveal_offset},
     history::History,
     nav::{Loading, View, fit, follow, page, press},
     parse::parse,
+    read::Identity,
 };
 
 const SEP: &str = "\x1f";
@@ -35,6 +42,10 @@ fn draw_loading(log: &str, width: u16, height: u16, keys: &str, loading: &Loadin
 }
 
 fn draw_loading_chords(log: &str, width: u16, height: u16, keys: &[(char, KeyModifiers)], loading: &Loading) -> Buffer {
+    draw_identified(log, width, height, keys, loading, &Identity::default())
+}
+
+fn draw_identified(log: &str, width: u16, height: u16, keys: &[(char, KeyModifiers)], loading: &Loading, identity: &Identity) -> Buffer {
     let mut history = History::default();
     for commit in parse(log) {
         history.push(commit);
@@ -48,7 +59,7 @@ fn draw_loading_chords(log: &str, width: u16, height: u16, keys: &[(char, KeyMod
             usize::from(height),
             max_offset(history.max_lanes(), usize::from(width)),
         );
-        terminal.draw(|frame| render(frame, &history, view, loading, NOW)).unwrap();
+        terminal.draw(|frame| render(frame, &history, view, loading, identity, NOW)).unwrap();
 
         view
     };
@@ -993,6 +1004,10 @@ fn three_commits() -> String {
 }
 
 const OVERLAY_COLOR: Color = Color::Rgb(0x6c, 0x70, 0x86);
+const SUBTEXT_COLOR: Color = Color::Rgb(0xa6, 0xad, 0xc8);
+const BASE_COLOR: Color = Color::Rgb(0x1e, 0x1e, 0x2e);
+const TEXT_COLOR: Color = Color::Rgb(0xcd, 0xd6, 0xf4);
+const RED_COLOR: Color = Color::Rgb(0xf3, 0x8b, 0xa8);
 
 fn last_row(buffer: &Buffer) -> String {
     row_text(buffer, buffer.area.height - 1)
@@ -1110,6 +1125,95 @@ fn truncates_the_failure_to_the_terminal_width() {
     assert_eq!(last_row(&buffer), "fatal: bad object i…");
 }
 
+fn glog_main() -> Identity {
+    Identity {
+        name: "glog".to_string(),
+        branch: "main".to_string(),
+    }
+}
+
+fn draw_identified_loading(width: u16, loading: &Loading, identity: &Identity) -> Buffer {
+    draw_identified(&three_commits(), width, 4, &[], loading, identity)
+}
+
+#[test]
+fn shows_the_repository_the_branch_and_the_position_right_aligned_two_spaces_apart() {
+    let buffer = draw_identified_loading(60, &Loading::Done, &glog_main());
+
+    assert_eq!(last_row(&buffer), format!("{}glog   main   1/3", " ".repeat(43)));
+}
+
+#[test]
+fn draws_the_repository_in_subtext_the_branch_as_a_bold_pill_and_the_position_in_overlay() {
+    let buffer = draw_identified_loading(60, &Loading::Done, &glog_main());
+
+    assert_eq!(buffer[(43, 4)].fg, SUBTEXT_COLOR);
+    assert_eq!(buffer[(43, 4)].bg, Color::Reset);
+    for x in 49..55 {
+        assert_eq!(buffer[(x, 4)].fg, BASE_COLOR, "{x}");
+        assert_eq!(buffer[(x, 4)].bg, TEXT_COLOR, "{x}");
+        assert!(buffer[(x, 4)].modifier.contains(Modifier::BOLD), "{x}");
+    }
+    assert_eq!(buffer[(57, 4)].fg, OVERLAY_COLOR);
+    assert_eq!(buffer[(57, 4)].bg, Color::Reset);
+}
+
+#[test]
+fn shows_a_detached_hash_where_the_branch_goes() {
+    let detached = Identity {
+        name: "glog".to_string(),
+        branch: "abc1234".to_string(),
+    };
+
+    let buffer = draw_identified_loading(60, &Loading::Reading, &detached);
+
+    assert!(last_row(&buffer).ends_with("glog   abc1234   1/3…"));
+}
+
+#[test]
+fn drops_the_repository_whole_then_the_branch_whole_on_a_narrow_terminal() {
+    let identity = glog_main();
+
+    assert!(last_row(&draw_identified_loading(17, &Loading::Done, &identity)).starts_with("glog   main   1/3"));
+    assert_eq!(
+        last_row(&draw_identified_loading(16, &Loading::Done, &identity)),
+        format!("{}  main   1/3", " ".repeat(4))
+    );
+    assert_eq!(last_row(&draw_identified_loading(11, &Loading::Done, &identity)), " main   1/3");
+    assert_eq!(
+        last_row(&draw_identified_loading(10, &Loading::Done, &identity)),
+        format!("{}1/3", " ".repeat(7))
+    );
+    assert_eq!(last_row(&draw_identified_loading(3, &Loading::Done, &identity)), "1/3");
+}
+
+#[test]
+fn keeps_the_repository_and_the_branch_in_front_of_the_failure() {
+    let failed = Loading::Failed("fatal: bad".to_string());
+
+    let buffer = draw_identified_loading(60, &failed, &glog_main());
+
+    assert_eq!(last_row(&buffer).trim_end(), "glog   main   fatal: bad");
+    assert_eq!(buffer[(15, 4)].fg, RED_COLOR);
+    assert_eq!(buffer[(0, 4)].fg, SUBTEXT_COLOR);
+}
+
+#[test]
+fn truncates_the_failure_to_the_room_left_after_dropping_the_repository_then_the_branch() {
+    let failed = Loading::Failed("fatal: bad object in the repository history".to_string());
+
+    let kept_both = draw_identified_loading(60, &failed, &glog_main());
+    let kept_branch = draw_identified_loading(51, &failed, &glog_main());
+    let kept_none = draw_identified_loading(20, &failed, &glog_main());
+
+    assert_eq!(
+        last_row(&kept_both).trim_end(),
+        "glog   main   fatal: bad object in the repository history"
+    );
+    assert_eq!(last_row(&kept_branch).trim_end(), " main   fatal: bad object in the repository history");
+    assert_eq!(last_row(&kept_none), "fatal: bad object i…");
+}
+
 fn selected_row(buffer: &Buffer) -> Option<u16> {
     (0..buffer.area.height).find(|&y| buffer[(0, y)].bg == SURFACE0)
 }
@@ -1123,12 +1227,16 @@ fn keeps_the_selection_on_the_same_commit_when_more_commits_arrive() {
     history.push(commits.next().unwrap());
     let mut terminal = Terminal::new(TestBackend::new(60, 5)).unwrap();
     let view = fit(press(View::default(), 'j', KeyModifiers::NONE, history.len(), 2), history.len(), 5, 0);
-    terminal.draw(|frame| render(frame, &history, view, &Loading::Reading, NOW)).unwrap();
+    terminal
+        .draw(|frame| render(frame, &history, view, &Loading::Reading, &Identity::default(), NOW))
+        .unwrap();
     let before = selected_row(terminal.backend().buffer());
 
     history.push(commits.next().unwrap());
     let view = fit(view, history.len(), 5, 0);
-    terminal.draw(|frame| render(frame, &history, view, &Loading::Reading, NOW)).unwrap();
+    terminal
+        .draw(|frame| render(frame, &history, view, &Loading::Reading, &Identity::default(), NOW))
+        .unwrap();
     let buffer = terminal.backend().buffer();
 
     assert_eq!(before, Some(1));
