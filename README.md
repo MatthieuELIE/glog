@@ -15,7 +15,7 @@ It is developed on macOS and tested on Linux; it has not been tried on Windows.
 
 ## Usage
 
-Run `glog` in a git repository. It reads the current folder and changes nothing. It opens while the history is still loading, with a status line on the last row until it is done.
+Run `glog` in a git repository. It reads the current folder and changes nothing. It opens while the history is still loading, with a permanent status line on the last row that shows the position of the selected commit, like `42/1,204`, followed by `…` until it is done.
 
 | Key      | Action                        |
 | -------- | ----------------------------- |
