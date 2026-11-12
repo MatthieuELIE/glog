@@ -1,6 +1,6 @@
 exclude_re = [
     # event_loop reads key events from the terminal through crossterm: neither seam reaches it, since the Seam 2 tests run the binary without a tty.
-    'src/main\.rs:58:5: replace event_loop -> io::Result<\(\)> with Ok\(\(\)\)',
+    'src/main\.rs:57:5: replace event_loop -> io::Result<\(\)> with Ok\(\(\)\)',
     # key_pressed polls and reads key events from the terminal through crossterm, which no seam reaches without a tty.
     'src/main\.rs:\d+:\d+: .*key_pressed',
     # git fails without a word only when a signal kills it, which no real repository made by a test provokes.

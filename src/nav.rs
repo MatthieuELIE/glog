@@ -1,10 +1,18 @@
-use ratatui::crossterm::event::KeyModifiers;
+use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+use crate::{draw::reveal_offset, history::History};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct View {
     pub selected: usize,
     pub top: usize,
     pub offset: usize,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Step {
+    Continue(View),
+    Quit,
 }
 
 pub enum Loading {
@@ -105,6 +113,22 @@ pub fn follow(before: View, after: View, node_offset: usize) -> View {
 
 pub fn quits(key: char, modifiers: KeyModifiers) -> bool {
     key == 'q' || (key == 'c' && modifiers.contains(KeyModifiers::CONTROL))
+}
+
+pub fn advance(view: View, key: KeyEvent, history: &History, terminal_width: usize, terminal_height: usize) -> Step {
+    let KeyCode::Char(character) = key.code else {
+        return Step::Continue(view);
+    };
+
+    if quits(character, key.modifiers) {
+        return Step::Quit;
+    }
+
+    let after = press(view, character, key.modifiers, history.len(), page(terminal_height));
+    let node_column = history.lane_row(after.selected).node_column as usize;
+    let node_offset = reveal_offset(after.offset, node_column, history.max_lanes(), terminal_width);
+
+    Step::Continue(follow(view, after, node_offset))
 }
 
 #[cfg(test)]

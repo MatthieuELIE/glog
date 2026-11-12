@@ -1,6 +1,10 @@
-use ratatui::crossterm::event::KeyModifiers;
+use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use crate::nav::{View, fit, follow, list_height, page, press, quits};
+use crate::{
+    history::History,
+    nav::{Step, View, advance, fit, follow, list_height, page, press, quits},
+    parse::parse,
+};
 
 #[test]
 fn q_quits() {
@@ -129,4 +133,53 @@ fn follow_keeps_the_view_when_the_selection_did_not_change() {
     let after = View { offset: 3, ..before };
 
     assert_eq!(follow(before, after, 7), after);
+}
+
+fn history_of(count: usize) -> History {
+    let mut history = History::default();
+    for index in (0..count).rev() {
+        let parents = if index == 0 { String::new() } else { format!("{:08x}", index - 1) };
+        let log = [
+            format!("{index:08x}"),
+            parents,
+            String::new(),
+            "1913600".to_string(),
+            "Ann".to_string(),
+            "subject".to_string(),
+        ]
+        .join("\x1f");
+        parse(&log).into_iter().for_each(|commit| history.push(commit));
+    }
+
+    history
+}
+
+fn key(code: KeyCode, modifiers: KeyModifiers) -> KeyEvent {
+    KeyEvent::new(code, modifiers)
+}
+
+#[test]
+fn advance_moves_the_selection_and_follows_the_node() {
+    let history = history_of(5);
+
+    let step = advance(View::default(), key(KeyCode::Char('j'), NONE), &history, 60, 10);
+
+    assert_eq!(step, Step::Continue(view(1, 0, 0)));
+}
+
+#[test]
+fn advance_quits_on_q_and_ctrl_c() {
+    let history = history_of(5);
+
+    assert_eq!(advance(View::default(), key(KeyCode::Char('q'), NONE), &history, 60, 10), Step::Quit);
+    assert_eq!(advance(View::default(), key(KeyCode::Char('c'), CTRL), &history, 60, 10), Step::Quit);
+}
+
+#[test]
+fn advance_ignores_a_key_that_is_not_a_character() {
+    let history = history_of(5);
+
+    for code in [KeyCode::Enter, KeyCode::Esc, KeyCode::Backspace] {
+        assert_eq!(advance(view(2, 0, 0), key(code, NONE), &history, 60, 10), Step::Continue(view(2, 0, 0)));
+    }
 }
