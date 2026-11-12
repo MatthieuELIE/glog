@@ -670,23 +670,23 @@ fn many_branches_log(count: usize) -> String {
 }
 
 #[test]
-fn limits_the_graph_column_to_a_third_of_the_terminal_so_the_text_stays_visible() {
+fn limits_the_graph_column_to_a_quarter_of_the_terminal_so_the_text_stays_visible() {
     let buffer = draw(&many_branches_log(60), 80, 61);
 
-    assert_eq!(row_text(&buffer, 59).chars().skip(27).take(7).collect::<String>(), "000003b");
+    assert_eq!(row_text(&buffer, 59).chars().skip(21).take(7).collect::<String>(), "000003b");
     assert!(row_text(&buffer, 59).contains("branch 59"));
     assert!(row_text(&buffer, 60).contains("base"));
 }
 
 #[test]
-fn shows_a_graph_that_fits_in_a_third_of_the_terminal_in_full() {
-    let buffer = draw(&open_lanes_log(7), 39, 1);
+fn shows_a_graph_that_fits_in_a_quarter_of_the_terminal_in_full() {
+    let buffer = draw(&open_lanes_log(7), 52, 1);
 
     assert_eq!(graph(&buffer, 0, 13), "●─╮─╮─╮─╮─╮─╮");
 }
 
 fn scrolled_graph(keys: &str, y: u16) -> String {
-    graph(&draw_after(&many_branches_log(6), 18, 7, keys), y, 6)
+    graph(&draw_after(&many_branches_log(6), 24, 7, keys), y, 6)
 }
 
 #[test]
@@ -722,14 +722,14 @@ fn the_graph_window_is_shifted_by_the_same_amount_on_every_row() {
 fn replaces_the_edge_cell_with_an_ellipsis_on_the_side_of_hidden_lanes() {
     let log = many_branches_log(6);
 
-    assert_eq!(graph(&draw_after(&log, 18, 7, ""), 4, 6), "│ │ │…");
-    assert_eq!(graph(&draw_after(&log, 18, 7, "l"), 4, 6), "… │ │…");
-    assert_eq!(graph(&draw_after(&log, 18, 7, "lll"), 4, 6), "… ●   ");
+    assert_eq!(graph(&draw_after(&log, 24, 7, ""), 4, 6), "│ │ │…");
+    assert_eq!(graph(&draw_after(&log, 24, 7, "l"), 4, 6), "… │ │…");
+    assert_eq!(graph(&draw_after(&log, 24, 7, "lll"), 4, 6), "… ●   ");
 }
 
 #[test]
 fn colours_the_ellipsis_in_overlay_on_every_row() {
-    let buffer = draw_after(&many_branches_log(6), 18, 7, "l");
+    let buffer = draw_after(&many_branches_log(6), 24, 7, "l");
 
     for y in 0..7 {
         assert_eq!((buffer[(0, y)].symbol(), buffer[(0, y)].fg), ("…", Color::Rgb(0x6c, 0x70, 0x86)));
@@ -741,9 +741,9 @@ fn colours_the_ellipsis_in_overlay_on_every_row() {
 fn h_and_l_keep_the_selection_and_j_and_k_keep_the_shift() {
     let log = many_branches_log(6);
 
-    assert_eq!(highlighted_rows(&draw_after(&log, 18, 7, "jjlh")), vec![2]);
-    assert_eq!(draw_after(&log, 18, 7, "jjll"), draw_after(&log, 18, 7, "lljj"));
-    assert_eq!(draw_after(&log, 18, 7, "lljk"), draw_after(&log, 18, 7, "ll"));
+    assert_eq!(highlighted_rows(&draw_after(&log, 24, 7, "jjlh")), vec![2]);
+    assert_eq!(draw_after(&log, 24, 7, "jjll"), draw_after(&log, 24, 7, "lljj"));
+    assert_eq!(draw_after(&log, 24, 7, "lljk"), draw_after(&log, 24, 7, "ll"));
 }
 
 fn parent_hash(n: usize, count: usize, last_parent: &str) -> String {
@@ -827,14 +827,14 @@ fn leaves_a_free_column_left_of_a_junction_blank() {
 
 #[test]
 fn replaces_the_last_cell_with_an_ellipsis_when_two_cells_are_hidden() {
-    let buffer = draw(&open_lanes_log(7), 33, 1);
+    let buffer = draw(&open_lanes_log(7), 44, 1);
 
     assert_eq!(graph(&buffer, 0, 11), "●─╮─╮─╮─╮─…");
 }
 
 #[test]
 fn leaves_the_cells_past_the_graph_unpainted_at_the_right_edge() {
-    let buffer = draw_after(&many_branches_log(6), 18, 7, "lll");
+    let buffer = draw_after(&many_branches_log(6), 24, 7, "lll");
 
     assert_eq!(buffer[(5, 4)].fg, Color::Reset);
 }

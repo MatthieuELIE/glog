@@ -55,7 +55,7 @@ fn graph_width(max_lanes: usize) -> usize {
 }
 
 fn window_width(graph_width: usize, terminal_width: usize) -> usize {
-    graph_width.min(terminal_width / 3)
+    graph_width.min(terminal_width / 4)
 }
 
 pub fn max_offset(max_lanes: usize, terminal_width: usize) -> usize {
