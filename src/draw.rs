@@ -11,7 +11,7 @@ use crate::{
     date::relative,
     history::{History, SHORT_HASH_WIDTH},
     lanes::{Cell, advance, cells},
-    nav::{Loading, View},
+    nav::{Loading, Session},
     parse::{Ref, RefKind},
     read::Identity,
     theme::{BASE, LANE_COLORS, OVERLAY, RED, SUBTEXT, SURFACE0, SURFACE1, TEXT, YELLOW},
@@ -267,14 +267,23 @@ fn status_line(identity: &Identity, rank: usize, total: usize, loading: &Loading
     Line::from(spans).right_aligned()
 }
 
-pub fn render(frame: &mut Frame, history: &History, view: View, loading: &Loading, identity: &Identity, now: i64) {
+fn input_line(input: &str, room: usize) -> Line<'static> {
+    Line::from(Span::styled(truncate(&format!("/{input}"), room), Style::new().fg(TEXT)))
+}
+
+pub fn render(frame: &mut Frame, history: &History, session: &Session, loading: &Loading, identity: &Identity, now: i64) {
+    let view = session.view;
     let full = frame.area();
     let [list_area, status_area] = Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]).areas(full);
     let rank = (view.selected + 1).min(history.len());
-    frame.render_widget(
-        Paragraph::new(status_line(identity, rank, history.len(), loading, usize::from(full.width))),
-        status_area,
-    );
+    let status = status_line(identity, rank, history.len(), loading, usize::from(full.width));
+    if let Some(input) = &session.input {
+        let room = usize::from(full.width).saturating_sub(status.width() + STATUS_SEPARATOR.width());
+        let left = input_line(input, room);
+        frame.set_cursor_position((status_area.x + u16::try_from(left.width()).unwrap_or(u16::MAX), status_area.y));
+        frame.render_widget(Paragraph::new(left), status_area);
+    }
+    frame.render_widget(Paragraph::new(status), status_area);
 
     let graph_width = graph_width(history.max_lanes());
     let terminal_width = usize::from(full.width);

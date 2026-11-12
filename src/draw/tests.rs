@@ -1,6 +1,6 @@
 use ratatui::{
     Terminal,
-    backend::TestBackend,
+    backend::{Backend, TestBackend},
     buffer::Buffer,
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
     style::{Color, Modifier},
@@ -9,7 +9,7 @@ use ratatui::{
 use crate::{
     draw::{max_offset, render, reveal_offset},
     history::History,
-    nav::{Loading, Step, View, advance, fit, press},
+    nav::{Loading, Session, Step, View, advance, fit, press},
     parse::parse,
     read::Identity,
 };
@@ -54,6 +54,7 @@ fn draw_identified(log: &str, width: u16, height: u16, keys: &[(char, KeyModifie
     draw_inputs_identified(log, width, height, &inputs, loading, identity)
 }
 
+#[derive(Clone)]
 enum Input {
     Key(KeyEvent),
     Commits(String),
@@ -64,35 +65,46 @@ fn draw_inputs(log: &str, width: u16, height: u16, inputs: &[Input]) -> Buffer {
 }
 
 fn draw_inputs_identified(log: &str, width: u16, height: u16, inputs: &[Input], loading: &Loading, identity: &Identity) -> Buffer {
+    replay(log, width, height, inputs, loading, identity).backend().buffer().clone()
+}
+
+fn cursor_after(log: &str, width: u16, height: u16, inputs: &[Input]) -> Option<(u16, u16)> {
+    let mut terminal = replay(log, width, height, inputs, &Loading::Done, &Identity::default());
+
+    terminal.backend_mut().get_cursor_position().ok().map(|position| (position.x, position.y))
+}
+
+fn replay(log: &str, width: u16, height: u16, inputs: &[Input], loading: &Loading, identity: &Identity) -> Terminal<TestBackend> {
     let mut history = History::default();
     parse(log).into_iter().for_each(|commit| history.push(commit));
     let mut terminal = Terminal::new(TestBackend::new(width, height + 1)).unwrap();
-    let mut view = View::default();
-    let mut frame_after = |view: View, history: &History| {
+    let mut session = Session::default();
+    let mut frame_after = |session: Session, history: &History| {
         let view = fit(
-            view,
+            session.view,
             history.len(),
             usize::from(height),
             max_offset(history.max_lanes(), usize::from(width)),
         );
-        terminal.draw(|frame| render(frame, history, view, loading, identity, NOW)).unwrap();
+        let session = Session { view, ..session };
+        terminal.draw(|frame| render(frame, history, &session, loading, identity, NOW)).unwrap();
 
-        view
+        session
     };
-    view = frame_after(view, &history);
+    session = frame_after(session, &history);
     for input in inputs {
         match input {
             Input::Key(key) => {
-                if let Step::Continue(next) = advance(view, *key, &history, usize::from(width), usize::from(height) + 1) {
-                    view = next;
+                if let Step::Continue(next) = advance(session.clone(), *key, &history, usize::from(width), usize::from(height) + 1) {
+                    session = next;
                 }
             }
             Input::Commits(batch) => parse(batch).into_iter().for_each(|commit| history.push(commit)),
         }
-        view = frame_after(view, &history);
+        session = frame_after(session, &history);
     }
 
-    terminal.backend().buffer().clone()
+    terminal
 }
 
 fn row_text(buffer: &Buffer, y: u16) -> String {
@@ -1247,15 +1259,19 @@ fn keeps_the_selection_on_the_same_commit_when_more_commits_arrive() {
     history.push(commits.next().unwrap());
     let mut terminal = Terminal::new(TestBackend::new(60, 5)).unwrap();
     let view = fit(press(View::default(), 'j', KeyModifiers::NONE, history.len(), 2), history.len(), 5, 0);
+    let session = Session { view, ..Session::default() };
     terminal
-        .draw(|frame| render(frame, &history, view, &Loading::Reading, &Identity::default(), NOW))
+        .draw(|frame| render(frame, &history, &session, &Loading::Reading, &Identity::default(), NOW))
         .unwrap();
     let before = selected_row(terminal.backend().buffer());
 
     history.push(commits.next().unwrap());
-    let view = fit(view, history.len(), 5, 0);
+    let session = Session {
+        view: fit(view, history.len(), 5, 0),
+        ..Session::default()
+    };
     terminal
-        .draw(|frame| render(frame, &history, view, &Loading::Reading, &Identity::default(), NOW))
+        .draw(|frame| render(frame, &history, &session, &Loading::Reading, &Identity::default(), NOW))
         .unwrap();
     let buffer = terminal.backend().buffer();
 
@@ -1432,4 +1448,217 @@ fn a_batch_of_commits_pushed_between_two_keys_joins_the_history() {
 
     assert!(last_row(&buffer).ends_with("6/6"));
     assert!(row_text(&buffer, 4).contains("pushed"));
+}
+
+fn typed(text: &str) -> Vec<Input> {
+    text.chars().map(|character| press_key(KeyCode::Char(character))).collect()
+}
+
+fn searching(query: &str) -> Vec<Input> {
+    [typed("/"), typed(query), vec![press_key(KeyCode::Enter)]].concat()
+}
+
+fn searched(log: &str, height: u16, query: &str) -> Buffer {
+    draw_inputs(log, 60, height, &searching(query))
+}
+
+fn commit(hash: &str, refs: &str, author: &str, subject: &str) -> String {
+    line(hash, "", refs, "1913600", author, subject)
+}
+
+#[test]
+fn a_search_moves_the_selection_to_a_commit_containing_the_query() {
+    let buffer = searched(&five_commits(), 5, "commit c");
+
+    assert_eq!(highlighted_rows(&buffer), vec![2]);
+}
+
+#[test]
+fn a_match_is_found_in_the_author_the_short_hash_or_a_ref_name() {
+    let log = [
+        commit("1111111", "", "Ann", "first"),
+        commit("2222222", "", "Bob", "second"),
+        commit("3333333", "", "Cat", "third"),
+        commit("4444444", "refs/remotes/origin/topic", "Dan", "fourth"),
+    ]
+    .join("\n");
+
+    assert_eq!(highlighted_rows(&searched(&log, 4, "Bob")), vec![1]);
+    assert_eq!(highlighted_rows(&searched(&log, 4, "333")), vec![2]);
+    assert_eq!(highlighted_rows(&searched(&log, 4, "topic")), vec![3]);
+}
+
+#[test]
+fn the_query_is_compared_field_by_field() {
+    let log = [commit("1111111", "", "Ann", "xyz"), commit("2222222", "", "Bob", "other")].join("\n");
+
+    assert_eq!(highlighted_rows(&searched(&log, 2, "Annxyz")), vec![0]);
+    assert_eq!(highlighted_rows(&searched(&log, 2, "Ann xyz")), vec![0]);
+    assert_eq!(highlighted_rows(&searched(&log, 2, "Bobother")), vec![0]);
+}
+
+#[test]
+fn a_commit_with_the_query_several_times_is_a_single_match() {
+    let log = [
+        commit("1111111", "", "Ann", "start"),
+        commit("2222222", "", "Bob", "aa aa aa"),
+        commit("3333333", "", "Cat", "other"),
+        commit("4444444", "", "Dan", "aa"),
+    ]
+    .join("\n");
+    let twice = [searching("aa"), searching("aa")].concat();
+
+    assert_eq!(highlighted_rows(&draw_inputs(&log, 60, 4, &searching("aa"))), vec![1]);
+    assert_eq!(highlighted_rows(&draw_inputs(&log, 60, 4, &twice)), vec![3]);
+}
+
+#[test]
+fn a_pasted_hash_longer_than_seven_characters_matches_the_commit_it_starts_with() {
+    let log = [
+        commit("1234567890abcdef", "", "Ann", "first"),
+        commit("fedcba0987654321", "", "Bob", "second"),
+    ]
+    .join("\n");
+
+    assert_eq!(highlighted_rows(&searched(&log, 2, "fedcba0987")), vec![1]);
+    assert_eq!(highlighted_rows(&searched(&log, 2, "ffffffffff")), vec![0]);
+}
+
+#[test]
+fn the_query_is_a_literal_text() {
+    let log = [
+        commit("1111111", "", "Ann", "start"),
+        commit("2222222", "", "Bob", "axb"),
+        commit("3333333", "", "Cat", "a.b (c)"),
+    ]
+    .join("\n");
+
+    assert_eq!(highlighted_rows(&searched(&log, 3, "a.b")), vec![2]);
+    assert_eq!(highlighted_rows(&searched(&log, 3, "(c")), vec![2]);
+}
+
+#[test]
+fn a_lowercase_query_ignores_the_case() {
+    let log = [commit("1111111", "", "Ann", "start"), commit("2222222", "", "Bob", "Fix typo")].join("\n");
+
+    assert_eq!(highlighted_rows(&searched(&log, 2, "fix")), vec![1]);
+}
+
+#[test]
+fn a_query_with_a_capital_respects_the_case() {
+    let log = [
+        commit("1111111", "", "Ann", "start"),
+        commit("2222222", "", "Bob", "fix bug"),
+        commit("3333333", "", "Cat", "Fix typo"),
+    ]
+    .join("\n");
+    let from_last = [typed("jj"), searching("Fix")].concat();
+
+    assert_eq!(highlighted_rows(&searched(&log, 3, "Fix")), vec![2]);
+    assert_eq!(highlighted_rows(&searched(&log, 3, "FIX")), vec![0]);
+    assert_eq!(highlighted_rows(&draw_inputs(&log, 60, 3, &from_last)), vec![2]);
+}
+
+#[test]
+fn the_case_rule_applies_to_the_hash() {
+    let log = [commit("1111111", "", "Ann", "start"), commit("e15d444", "", "Bob", "second")].join("\n");
+
+    assert_eq!(highlighted_rows(&searched(&log, 2, "e15d444")), vec![1]);
+    assert_eq!(highlighted_rows(&searched(&log, 2, "E15D444")), vec![0]);
+}
+
+#[test]
+fn the_selection_does_not_move_while_typing() {
+    let buffer = draw_inputs(&five_commits(), 60, 5, &typed("/commit c"));
+
+    assert_eq!(highlighted_rows(&buffer), vec![0]);
+}
+
+#[test]
+fn a_search_goes_to_the_first_match_strictly_after_the_selection_and_wraps_to_the_top() {
+    let after_third = [typed("jj"), searching("commit")].concat();
+    let from_last = [typed("G"), searching("commit")].concat();
+    let alone = [typed("jj"), searching("commit c")].concat();
+
+    assert_eq!(highlighted_rows(&draw_inputs(&five_commits(), 60, 5, &after_third)), vec![3]);
+    assert_eq!(highlighted_rows(&draw_inputs(&five_commits(), 60, 5, &from_last)), vec![0]);
+    assert_eq!(highlighted_rows(&draw_inputs(&five_commits(), 60, 5, &alone)), vec![2]);
+}
+
+#[test]
+fn a_search_without_match_leaves_the_selection_in_place() {
+    let inputs = [typed("jj"), searching("nothing like it")].concat();
+
+    let buffer = draw_inputs(&five_commits(), 60, 5, &inputs);
+
+    assert_eq!(highlighted_rows(&buffer), vec![2]);
+    assert_eq!(last_row(&buffer).trim(), "3/5");
+}
+
+#[test]
+fn the_list_scrolls_just_enough_to_show_the_match() {
+    let buffer = searched(&five_commits(), 3, "commit a");
+
+    assert!(row_text(&buffer, 0).contains("commit c"));
+    assert_eq!(highlighted_rows(&buffer), vec![2]);
+}
+
+#[test]
+fn the_graph_window_follows_the_node_of_the_match() {
+    let log = many_branches_log(6);
+
+    assert_node_shown(&draw_inputs(&log, 24, 7, &searching("branch 5")));
+}
+
+#[test]
+fn the_input_is_read_at_the_left_of_the_status_line_after_a_slash() {
+    let buffer = draw_inputs(&five_commits(), 40, 5, &typed("/ab"));
+
+    assert_eq!(last_row(&buffer).trim_end(), format!("/ab{}1/5", " ".repeat(34)));
+}
+
+#[test]
+fn the_cursor_sits_after_the_last_typed_character() {
+    assert_eq!(cursor_after(&five_commits(), 40, 5, &typed("/")), Some((1, 5)));
+    assert_eq!(cursor_after(&five_commits(), 40, 5, &typed("/abc")), Some((4, 5)));
+}
+
+#[test]
+fn the_input_closes_after_enter() {
+    let buffer = searched(&five_commits(), 5, "commit c");
+
+    assert_eq!(last_row(&buffer).trim(), "3/5");
+}
+
+#[test]
+fn enter_on_an_empty_input_does_nothing_and_leaves_it_open() {
+    let inputs = [typed("/"), vec![press_key(KeyCode::Enter)]].concat();
+
+    assert_eq!(cursor_after(&five_commits(), 40, 5, &inputs), Some((1, 5)));
+
+    let more = [inputs, typed("commit c"), vec![press_key(KeyCode::Enter)]].concat();
+
+    assert_eq!(highlighted_rows(&draw_inputs(&five_commits(), 60, 5, &more)), vec![2]);
+}
+
+#[test]
+fn the_navigation_keys_are_characters_of_the_query_during_the_input() {
+    let buffer = draw_inputs(&five_commits(), 60, 5, &typed("/qjknNgGhl"));
+
+    assert!(last_row(&buffer).starts_with("/qjknNgGhl"));
+    assert_eq!(highlighted_rows(&buffer), vec![0]);
+}
+
+#[test]
+fn opening_the_input_keeps_the_list_height_and_the_half_page() {
+    let log = twelve_commits();
+    let list = |buffer: &Buffer| (0..12).map(|y| row_text(buffer, y)).collect::<Vec<_>>();
+    let half_page = [
+        searching("nothing like it"),
+        vec![Input::Key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL))],
+    ]
+    .concat();
+
+    assert_eq!(list(&draw_inputs(&log, 60, 12, &[])), list(&draw_inputs(&log, 60, 12, &typed("/"))));
+    assert_eq!(highlighted_rows(&draw_inputs(&log, 60, 12, &half_page)), vec![6]);
 }

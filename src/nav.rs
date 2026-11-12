@@ -1,6 +1,10 @@
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use crate::{draw::reveal_offset, history::History};
+use crate::{
+    draw::reveal_offset,
+    history::History,
+    search::{Search, next_after, scan},
+};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct View {
@@ -9,9 +13,16 @@ pub struct View {
     pub offset: usize,
 }
 
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Session {
+    pub view: View,
+    pub input: Option<String>,
+    pub search: Option<Search>,
+}
+
 #[derive(Debug, PartialEq)]
 pub enum Step {
-    Continue(View),
+    Continue(Session),
     Quit,
 }
 
@@ -115,20 +126,87 @@ pub fn quits(key: char, modifiers: KeyModifiers) -> bool {
     key == 'q' || (key == 'c' && modifiers.contains(KeyModifiers::CONTROL))
 }
 
-pub fn advance(view: View, key: KeyEvent, history: &History, terminal_width: usize, terminal_height: usize) -> Step {
+fn settle(before: View, after: View, history: &History, terminal_width: usize) -> View {
+    let node_column = history.lane_row(after.selected).node_column as usize;
+    let node_offset = reveal_offset(after.offset, node_column, history.max_lanes(), terminal_width);
+
+    follow(before, after, node_offset)
+}
+
+fn submit(session: Session, input: String, history: &History, terminal_width: usize) -> Session {
+    if input.is_empty() {
+        return Session {
+            input: Some(input),
+            ..session
+        };
+    }
+
+    let found = scan(history, &input);
+    let selected = next_after(&found.matches, session.view.selected).unwrap_or(session.view.selected);
+    let after = View { selected, ..session.view };
+
+    Session {
+        view: settle(session.view, after, history, terminal_width),
+        input: None,
+        search: Some(found),
+    }
+}
+
+fn type_in(session: Session, input: String, key: KeyEvent, history: &History, terminal_width: usize) -> Step {
+    if key.code == KeyCode::Enter {
+        return Step::Continue(submit(session, input, history, terminal_width));
+    }
+
     let KeyCode::Char(character) = key.code else {
-        return Step::Continue(view);
+        return Step::Continue(Session {
+            input: Some(input),
+            ..session
+        });
+    };
+
+    if character == 'c' && key.modifiers.contains(KeyModifiers::CONTROL) {
+        return Step::Quit;
+    }
+
+    if key.modifiers.contains(KeyModifiers::CONTROL) {
+        return Step::Continue(Session {
+            input: Some(input),
+            ..session
+        });
+    }
+
+    Step::Continue(Session {
+        input: Some(format!("{input}{character}")),
+        ..session
+    })
+}
+
+pub fn advance(mut session: Session, key: KeyEvent, history: &History, terminal_width: usize, terminal_height: usize) -> Step {
+    if let Some(input) = session.input.take() {
+        return type_in(session, input, key, history, terminal_width);
+    }
+
+    let KeyCode::Char(character) = key.code else {
+        return Step::Continue(session);
     };
 
     if quits(character, key.modifiers) {
         return Step::Quit;
     }
 
-    let after = press(view, character, key.modifiers, history.len(), page(terminal_height));
-    let node_column = history.lane_row(after.selected).node_column as usize;
-    let node_offset = reveal_offset(after.offset, node_column, history.max_lanes(), terminal_width);
+    if character == '/' && !key.modifiers.contains(KeyModifiers::CONTROL) {
+        return Step::Continue(Session {
+            input: Some(String::new()),
+            ..session
+        });
+    }
 
-    Step::Continue(follow(view, after, node_offset))
+    let after = press(session.view, character, key.modifiers, history.len(), page(terminal_height));
+
+    Step::Continue(Session {
+        view: settle(session.view, after, history, terminal_width),
+        ..session
+    })
 }
 
 #[cfg(test)]
