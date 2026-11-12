@@ -3,6 +3,18 @@
 Notable changes to `glog`, most recent first.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Changed
+
+- The graph takes at most a quarter of the terminal width instead of a third, which leaves more room to the subject.
+- The author column has a width of fifteen cells instead of twenty.
+- When lanes are hidden, the two cells on that edge of the graph fade to dark grey instead of a dimmed `…`.
+- Badges are pills, a name on a coloured background instead of between brackets: local branches in their lane's colour, remote branches in grey, tags in yellow.
+- On a branch, HEAD no longer has its own `[HEAD]` badge: the pill of its branch is first and in bold. A detached HEAD shows a bold `HEAD` pill.
+- The hash and the date are the dimmest text, the author is a step lighter and the subject is the lightest: colour is kept for the graph and the badges.
+- The selected row has a softer background and a bold subject.
+
 ## [0.1.2] - 2026-11-11
 
 ### Added
