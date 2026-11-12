@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use ratatui::{
     Frame,
     layout::{Constraint, Layout},
@@ -14,7 +16,7 @@ use crate::{
     nav::{Loading, Session},
     parse::{Ref, RefKind},
     read::Identity,
-    search::Search,
+    search::{Search, find, find_in_hash},
     theme::{BASE, LANE_COLORS, OVERLAY, RED, SUBTEXT, SURFACE0, SURFACE1, TEXT, YELLOW},
 };
 
@@ -143,10 +145,46 @@ fn badge_label(reference: &Ref) -> String {
     }
 }
 
-fn badge_spans(refs: &[Ref], node_color: u32) -> Vec<Span<'static>> {
+fn marked(text: &str, range: Option<Range<usize>>, style: Style, mark: Style) -> Vec<Span<'static>> {
+    let Some(range) = range else {
+        return vec![Span::styled(text.to_string(), style)];
+    };
+
+    vec![
+        Span::styled(text[..range.start].to_string(), style),
+        Span::styled(text[range.clone()].to_string(), mark),
+        Span::styled(text[range.end..].to_string(), style),
+    ]
+}
+
+fn plain_mark(style: Style) -> Style {
+    style.fg(BASE).bg(YELLOW)
+}
+
+fn badge_spans(refs: &[Ref], node_color: u32, query: &str) -> Vec<Span<'static>> {
     refs.iter()
-        .flat_map(|reference| [Span::styled(badge_label(reference), badge_style(reference, node_color)), Span::raw(" ")])
+        .flat_map(|reference| {
+            let label = badge_label(reference);
+            let style = badge_style(reference, node_color);
+            let name_start = label.len() - reference.name.len() - 1;
+            let range = find(&reference.name, query).map(|range| range.start + name_start..range.end + name_start);
+            let mut spans = marked(&label, range, style, style.add_modifier(Modifier::BOLD | Modifier::UNDERLINED));
+            spans.push(Span::raw(" "));
+
+            spans
+        })
         .collect()
+}
+
+fn marked_query(search: Option<&Search>, row: usize) -> &str {
+    let Some(search) = search else {
+        return "";
+    };
+    if search.matches.binary_search(&row).is_err() {
+        return "";
+    }
+
+    &search.query
 }
 
 fn subject_style(selected: bool) -> Style {
@@ -162,30 +200,40 @@ fn commit_line(
     history: &History,
     row: usize,
     graph: Vec<Span<'static>>,
-    node_color: u32,
-    now: i64,
-    message_width: usize,
-    selected: bool,
+    badges: Vec<Span<'static>>,
+    date: &str,
+    subject: Vec<Span<'static>>,
+    query: &str,
 ) -> Line<'static> {
+    let hash = history.short_hash(row);
+    let hash_style = Style::new().fg(OVERLAY);
+    let author = truncate(history.author(row), AUTHOR_WIDTH);
+    let author_style = Style::new().fg(SUBTEXT);
     let mut spans = graph;
+    spans.push(Span::raw(" "));
+    spans.extend(marked(hash, find_in_hash(hash, query), hash_style, plain_mark(hash_style)));
     spans.extend([
         Span::raw(" "),
-        Span::styled(history.short_hash(row).to_string(), Style::new().fg(OVERLAY)),
-        Span::raw(" "),
-        Span::styled(pad(&relative(now, history.time(row)), DATE_WIDTH), Style::new().fg(OVERLAY)),
-        Span::raw(" "),
-        Span::styled(pad(&truncate(history.author(row), AUTHOR_WIDTH), AUTHOR_WIDTH), Style::new().fg(SUBTEXT)),
+        Span::styled(pad(date, DATE_WIDTH), Style::new().fg(OVERLAY)),
         Span::raw(" "),
     ]);
-    let badges = badge_spans(history.refs(row), node_color);
-    let badges_width: usize = badges.iter().map(Span::width).sum();
-    spans.extend(badges);
-    spans.push(Span::styled(
-        truncate(history.subject(row), message_width.saturating_sub(badges_width)),
-        subject_style(selected),
+    spans.extend(marked(
+        &pad(&author, AUTHOR_WIDTH),
+        find(&author, query),
+        author_style,
+        plain_mark(author_style),
     ));
+    spans.push(Span::raw(" "));
+    spans.extend(badges);
+    spans.extend(subject);
 
     Line::from(spans)
+}
+
+fn subject_spans(subject: &str, width: usize, style: Style, query: &str) -> Vec<Span<'static>> {
+    let shown = truncate(subject, width);
+
+    marked(&shown, find(&shown, query), style, plain_mark(style))
 }
 
 fn is_head(refs: &[Ref]) -> bool {
@@ -355,7 +403,18 @@ pub fn render(frame: &mut Frame, history: &History, session: &Session, loading: 
         let cells = cells(&lanes, &lane_row, is_head(history.refs(row)), view.offset, drawn_cells);
         let graph = graph_spans(&cells, view.offset, graph_width, window_width);
         let selected = row == view.selected;
-        let mut item = ListItem::new(commit_line(history, row, graph, lane_row.color, now, message_width, selected));
+        let query = marked_query(session.search.as_ref(), row);
+        let date = relative(now, history.time(row));
+        let badges = badge_spans(history.refs(row), lane_row.color, query);
+        let badges_width: usize = badges.iter().map(Span::width).sum();
+        let subject = subject_spans(
+            history.subject(row),
+            message_width.saturating_sub(badges_width),
+            subject_style(selected),
+            query,
+        );
+        let line = commit_line(history, row, graph, badges, &date, subject, query);
+        let mut item = ListItem::new(line);
         if selected {
             item = item.style(Style::new().bg(SURFACE0));
         }
