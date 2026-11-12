@@ -2002,3 +2002,16 @@ fn an_abandoned_input_gives_the_left_back_to_the_previous_search() {
 
     assert_eq!(status, status_after(&log, 40, &bob_search(), &Identity::default()));
 }
+
+#[test]
+fn a_query_that_finds_nothing_shows_no_match_in_red_after_the_query() {
+    let inputs = [typed("jj"), searching("zzz")].concat();
+
+    let buffer = draw_inputs(&five_commits(), 40, 5, &inputs);
+
+    assert_eq!(last_row(&buffer), format!("/zzz  no match{}3/5", " ".repeat(23)));
+    assert_eq!(buffer[(6, 5)].fg, RED_COLOR);
+    assert_eq!(buffer[(13, 5)].fg, RED_COLOR);
+    assert_eq!(buffer[(1, 5)].fg, TEXT_COLOR);
+    assert_eq!(highlighted_rows(&buffer), vec![2]);
+}
