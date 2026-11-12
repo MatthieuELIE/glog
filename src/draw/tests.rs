@@ -2004,6 +2004,35 @@ fn an_abandoned_input_gives_the_left_back_to_the_previous_search() {
 }
 
 #[test]
+fn escape_outside_the_input_clears_the_search_and_empties_the_left_of_the_status_line() {
+    let log = bob_on_rows_one_and_three();
+    let cleared = [bob_search(), vec![press_key(KeyCode::Esc)]].concat();
+
+    let buffer = draw_inputs_identified(&log, 40, 5, &cleared, &Loading::Done, &glog_main());
+
+    assert_eq!(last_row(&buffer), format!("{}glog   main   2/5", " ".repeat(23)));
+    assert_eq!(highlighted_rows(&buffer), vec![1]);
+}
+
+#[test]
+fn n_and_capital_n_do_nothing_after_escape_cleared_the_search() {
+    let log = bob_on_rows_one_and_three();
+    let cleared = [bob_search(), vec![press_key(KeyCode::Esc)]].concat();
+
+    let after = |keys: &str| draw_inputs(&log, 40, 5, &[cleared.clone(), typed(keys)].concat());
+
+    assert_eq!(after("n"), after(""));
+    assert_eq!(after("N"), after(""));
+}
+
+#[test]
+fn escape_without_a_search_does_nothing() {
+    let buffer = draw_inputs(&five_commits(), 40, 5, &[press_key(KeyCode::Esc)]);
+
+    assert_eq!(buffer, draw(&five_commits(), 40, 5));
+}
+
+#[test]
 fn a_query_that_finds_nothing_shows_no_match_in_red_after_the_query() {
     let inputs = [typed("jj"), searching("zzz")].concat();
 
