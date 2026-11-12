@@ -92,17 +92,17 @@ fn two_commits() -> String {
 fn aligns_graph_hash_date_author_and_message_columns() {
     let buffer = draw(&two_commits(), 60, 2);
 
-    assert_eq!(row_text(&buffer, 0).trim_end(), "● 1234567 3d   Ann                  short subject");
-    assert_eq!(row_text(&buffer, 1).trim_end(), "● fedcba0 14d  Bartholomew          older");
+    assert_eq!(row_text(&buffer, 0).trim_end(), "● 1234567 3d   Ann             short subject");
+    assert_eq!(row_text(&buffer, 1).trim_end(), "● fedcba0 14d  Bartholomew     older");
 }
 
 #[test]
-fn truncates_an_author_wider_than_twenty_cells_with_an_ellipsis() {
+fn truncates_an_author_wider_than_fifteen_cells_with_an_ellipsis() {
     let log = line("1234567890abcdef", "", "", "1913600", "Bartholomew Maximilian Fitzgerald", "subject");
 
     let buffer = draw(&log, 60, 1);
 
-    assert_eq!(row_text(&buffer, 0).trim_end(), "● 1234567 1d   Bartholomew Maximil… subject");
+    assert_eq!(row_text(&buffer, 0).trim_end(), "● 1234567 1d   Bartholomew Ma… subject");
 }
 
 #[test]
@@ -111,7 +111,7 @@ fn shows_the_date_on_four_cells_whatever_the_loaded_commits() {
 
     let buffer = draw(&log, 60, 1);
 
-    assert_eq!(row_text(&buffer, 0).trim_end(), "● 1234567 now  Ann                  short subject");
+    assert_eq!(row_text(&buffer, 0).trim_end(), "● 1234567 now  Ann             short subject");
 }
 
 #[test]
@@ -150,7 +150,7 @@ fn aligns_columns_by_display_width_for_wide_characters() {
 fn truncates_the_message_first_in_a_narrow_terminal() {
     let buffer = draw(&two_commits(), 40, 2);
 
-    assert_eq!(row_text(&buffer, 0), "● 1234567 3d   Ann                  sho…");
+    assert_eq!(row_text(&buffer, 0), "● 1234567 3d   Ann             short su…");
 }
 
 #[test]
@@ -497,7 +497,7 @@ fn shows_the_refs_of_a_commit_as_badges_before_its_message() {
 
     assert_eq!(
         row_text(&buffer, 0).trim_end(),
-        "○ aaaaaaa 1d   Ann                  [HEAD] [main] [origin/main] [◆ v1.0] subject"
+        "○ aaaaaaa 1d   Ann             [HEAD] [main] [origin/main] [◆ v1.0] subject"
     );
 }
 
@@ -564,9 +564,9 @@ fn leaves_the_terminal_background_unpainted_under_badges() {
 
 #[test]
 fn truncates_the_message_after_the_badges_in_a_narrow_terminal() {
-    let buffer = draw(&badge_log("refs/heads/main"), 48, 1);
+    let buffer = draw(&badge_log("refs/heads/main"), 43, 1);
 
-    assert_eq!(row_text(&buffer, 0), "● aaaaaaa 1d   Ann                  [main] subj…");
+    assert_eq!(row_text(&buffer, 0), "● aaaaaaa 1d   Ann             [main] subj…");
 }
 
 #[test]
@@ -612,7 +612,7 @@ fn orders_badges_head_then_local_then_remote_then_tags_keeping_git_order_within_
 
     assert_eq!(
         row_text(&buffer, 0).trim_end(),
-        "○ aaaaaaa 1d   Ann                  [HEAD] [zeta] [feature/a] [origin/feature/a] [◆ v1] subject"
+        "○ aaaaaaa 1d   Ann             [HEAD] [zeta] [feature/a] [origin/feature/a] [◆ v1] subject"
     );
 }
 

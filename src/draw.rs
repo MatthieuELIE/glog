@@ -17,7 +17,7 @@ use crate::{
 };
 
 const DATE_WIDTH: usize = 4;
-const AUTHOR_WIDTH: usize = 20;
+const AUTHOR_WIDTH: usize = 15;
 const SEPARATORS_WIDTH: usize = 4;
 const CELLS_PER_LANE: usize = 2;
 const ELLIPSIS: char = '…';
