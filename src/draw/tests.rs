@@ -691,10 +691,10 @@ fn scrolled_graph(keys: &str, y: u16) -> String {
 
 #[test]
 fn l_shifts_the_graph_window_one_lane_to_the_right() {
-    assert_eq!(scrolled_graph("", 4), "│ │ │…");
-    assert_eq!(scrolled_graph("l", 4), "… │ │…");
-    assert_eq!(scrolled_graph("ll", 4), "… │ ●…");
-    assert_eq!(scrolled_graph("lll", 4), "… ●   ");
+    assert_eq!(scrolled_graph("", 4), "│ │ │ ");
+    assert_eq!(scrolled_graph("l", 4), "│ │ │ ");
+    assert_eq!(scrolled_graph("ll", 4), "│ │ ● ");
+    assert_eq!(scrolled_graph("lll", 4), "│ ●   ");
 }
 
 #[test]
@@ -712,29 +712,55 @@ fn h_at_the_left_edge_and_l_at_the_right_edge_do_nothing() {
 
 #[test]
 fn the_graph_window_is_shifted_by_the_same_amount_on_every_row() {
-    assert_eq!(scrolled_graph("lll", 3), "…     ");
-    assert_eq!(scrolled_graph("lll", 4), "… ●   ");
-    assert_eq!(scrolled_graph("lll", 5), "… │ ● ");
-    assert_eq!(scrolled_graph("lll", 6), "…─╯─╯ ");
+    assert_eq!(scrolled_graph("lll", 3), "●     ");
+    assert_eq!(scrolled_graph("lll", 4), "│ ●   ");
+    assert_eq!(scrolled_graph("lll", 5), "│ │ ● ");
+    assert_eq!(scrolled_graph("lll", 6), "╯─╯─╯ ");
+}
+
+fn dimmed_cells(buffer: &Buffer, y: u16, width: u16) -> Vec<u16> {
+    (0..width).filter(|&x| buffer[(x, y)].fg == SURFACE1).collect()
 }
 
 #[test]
-fn replaces_the_edge_cell_with_an_ellipsis_on_the_side_of_hidden_lanes() {
+fn dims_the_two_edge_cells_on_the_side_of_hidden_lanes() {
     let log = many_branches_log(6);
 
-    assert_eq!(graph(&draw_after(&log, 24, 7, ""), 4, 6), "│ │ │…");
-    assert_eq!(graph(&draw_after(&log, 24, 7, "l"), 4, 6), "… │ │…");
-    assert_eq!(graph(&draw_after(&log, 24, 7, "lll"), 4, 6), "… ●   ");
+    assert_eq!(dimmed_cells(&draw_after(&log, 24, 7, ""), 4, 6), [4, 5]);
+    assert_eq!(dimmed_cells(&draw_after(&log, 24, 7, "l"), 4, 6), [0, 1, 4, 5]);
+    assert_eq!(dimmed_cells(&draw_after(&log, 24, 7, "lll"), 4, 6), [0, 1]);
 }
 
 #[test]
-fn colours_the_ellipsis_in_overlay_on_every_row() {
+fn keeps_the_glyphs_of_the_dimmed_cells_and_shows_no_ellipsis_in_the_graph() {
+    let log = many_branches_log(6);
+
+    assert_eq!(graph(&draw_after(&log, 24, 7, ""), 4, 6), "│ │ │ ");
+    assert_eq!(graph(&draw_after(&log, 24, 7, "l"), 4, 6), "│ │ │ ");
+    assert_eq!(graph(&draw_after(&log, 24, 7, "lll"), 4, 6), "│ ●   ");
+}
+
+#[test]
+fn dims_the_edge_cells_on_every_row_whatever_their_lane_colour() {
     let buffer = draw_after(&many_branches_log(6), 24, 7, "l");
 
     for y in 0..7 {
-        assert_eq!((buffer[(0, y)].symbol(), buffer[(0, y)].fg), ("…", Color::Rgb(0x6c, 0x70, 0x86)));
-        assert_eq!((buffer[(5, y)].symbol(), buffer[(5, y)].fg), ("…", Color::Rgb(0x6c, 0x70, 0x86)));
+        assert_eq!(dimmed_cells(&buffer, y, 6), [0, 1, 4, 5]);
     }
+}
+
+#[test]
+fn dims_no_edge_when_the_graph_window_is_under_five_cells() {
+    let buffer = draw_after(&many_branches_log(6), 16, 7, "l");
+
+    assert_eq!(dimmed_cells(&buffer, 4, 4), Vec::<u16>::new());
+}
+
+#[test]
+fn dims_no_edge_when_the_graph_fits_in_the_window() {
+    let buffer = draw(&open_lanes_log(3), 40, 1);
+
+    assert_eq!(dimmed_cells(&buffer, 0, 5), Vec::<u16>::new());
 }
 
 #[test]
@@ -826,10 +852,11 @@ fn leaves_a_free_column_left_of_a_junction_blank() {
 }
 
 #[test]
-fn replaces_the_last_cell_with_an_ellipsis_when_two_cells_are_hidden() {
+fn dims_the_last_two_cells_when_two_cells_are_hidden() {
     let buffer = draw(&open_lanes_log(7), 44, 1);
 
-    assert_eq!(graph(&buffer, 0, 11), "●─╮─╮─╮─╮─…");
+    assert_eq!(graph(&buffer, 0, 11), "●─╮─╮─╮─╮─╮");
+    assert_eq!(dimmed_cells(&buffer, 0, 11), [9, 10]);
 }
 
 #[test]

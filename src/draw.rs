@@ -21,6 +21,9 @@ const AUTHOR_WIDTH: usize = 15;
 const SEPARATORS_WIDTH: usize = 4;
 const CELLS_PER_LANE: usize = 2;
 const ELLIPSIS: char = '…';
+const EDGE_CELLS: usize = 2;
+const MIN_DIMMED_WINDOW: usize = 5;
+
 fn pad(text: &str, width: usize) -> String {
     let padding = width.saturating_sub(text.width());
 
@@ -66,8 +69,10 @@ pub fn max_offset(max_lanes: usize, terminal_width: usize) -> usize {
         .div_ceil(CELLS_PER_LANE)
 }
 
-fn ellipsis_span() -> Span<'static> {
-    Span::styled(ELLIPSIS.to_string(), Style::new().fg(OVERLAY))
+fn dim<'a>(spans: impl Iterator<Item = &'a mut Span<'static>>) {
+    for span in spans {
+        span.style = Style::new().fg(SURFACE1);
+    }
 }
 
 fn lane_color(color: u32) -> Color {
@@ -80,16 +85,14 @@ fn graph_spans(cells: &[Cell], offset: usize, graph_width: usize, window_width: 
         .iter()
         .map(|cell| Span::styled(cell.symbol.to_string(), Style::new().fg(lane_color(cell.color))))
         .collect();
-    if offset > 0
-        && let Some(first) = spans.first_mut()
-    {
-        *first = ellipsis_span();
-    }
+    if window_width >= MIN_DIMMED_WINDOW {
+        if offset > 0 {
+            dim(spans.iter_mut().take(EDGE_CELLS));
+        }
 
-    if start + window_width < graph_width
-        && let Some(last) = spans.last_mut()
-    {
-        *last = ellipsis_span();
+        if start + window_width < graph_width {
+            dim(spans.iter_mut().rev().take(EDGE_CELLS));
+        }
     }
     spans.push(Span::raw(" ".repeat(window_width.saturating_sub(spans.len()))));
 
