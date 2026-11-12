@@ -154,21 +154,21 @@ fn truncates_the_message_first_in_a_narrow_terminal() {
 }
 
 #[test]
-fn colours_hash_in_overlay_and_text_in_text_and_subtext() {
+fn colours_hash_and_date_in_overlay_and_text_in_text_and_subtext() {
     let buffer = draw(&two_commits(), 60, 2);
 
     assert_eq!(buffer[(2, 0)].fg, Color::Rgb(0x6c, 0x70, 0x86));
-    assert_eq!(buffer[(10, 0)].fg, Color::Rgb(0xa6, 0xad, 0xc8));
+    assert_eq!(buffer[(10, 0)].fg, Color::Rgb(0x6c, 0x70, 0x86));
     assert_eq!(buffer[(36, 0)].fg, Color::Rgb(0xcd, 0xd6, 0xf4));
     assert_eq!(buffer[(36, 1)].bg, Color::Reset);
 }
 
 #[test]
-fn colours_author_in_lavender_apart_from_the_date() {
+fn colours_author_in_subtext_apart_from_the_date() {
     let buffer = draw(&two_commits(), 60, 2);
 
-    assert_eq!(buffer[(22, 0)].fg, Color::Rgb(0xb4, 0xbe, 0xfe));
-    assert_eq!(buffer[(22, 1)].fg, Color::Rgb(0xb4, 0xbe, 0xfe));
+    assert_eq!(buffer[(22, 0)].fg, Color::Rgb(0xa6, 0xad, 0xc8));
+    assert_eq!(buffer[(22, 1)].fg, Color::Rgb(0xa6, 0xad, 0xc8));
 }
 
 const SURFACE1: Color = Color::Rgb(0x45, 0x47, 0x5a);

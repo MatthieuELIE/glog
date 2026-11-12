@@ -13,7 +13,7 @@ use crate::{
     lanes::{Cell, advance, cells},
     nav::{Loading, View},
     parse::{Ref, RefKind},
-    theme::{BASE, LANE_COLORS, LAVENDER, OVERLAY, RED, SUBTEXT, SURFACE1, TEXT, YELLOW},
+    theme::{BASE, LANE_COLORS, OVERLAY, RED, SUBTEXT, SURFACE1, TEXT, YELLOW},
 };
 
 const DATE_WIDTH: usize = 4;
@@ -128,9 +128,9 @@ fn commit_line(history: &History, row: usize, graph: Vec<Span<'static>>, node_co
         Span::raw(" "),
         Span::styled(history.short_hash(row).to_string(), Style::new().fg(OVERLAY)),
         Span::raw(" "),
-        Span::styled(pad(&relative(now, history.time(row)), DATE_WIDTH), Style::new().fg(SUBTEXT)),
+        Span::styled(pad(&relative(now, history.time(row)), DATE_WIDTH), Style::new().fg(OVERLAY)),
         Span::raw(" "),
-        Span::styled(pad(&truncate(history.author(row), AUTHOR_WIDTH), AUTHOR_WIDTH), Style::new().fg(LAVENDER)),
+        Span::styled(pad(&truncate(history.author(row), AUTHOR_WIDTH), AUTHOR_WIDTH), Style::new().fg(SUBTEXT)),
         Span::raw(" "),
     ]);
     let badges = badge_spans(history.refs(row), node_color);
