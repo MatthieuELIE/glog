@@ -152,6 +152,16 @@ fn submit(session: Session, input: String, history: &History, terminal_width: us
     }
 }
 
+fn match_jump(session: &Session, key: char, modifiers: KeyModifiers) -> Option<usize> {
+    let search = session.search.as_ref()?;
+
+    if key == 'n' && !modifiers.contains(KeyModifiers::CONTROL) {
+        return next_after(&search.matches, session.view.selected);
+    }
+
+    None
+}
+
 fn edit(input: String, key: KeyEvent) -> Option<String> {
     if key.code == KeyCode::Esc {
         return None;
@@ -204,7 +214,10 @@ pub fn advance(mut session: Session, key: KeyEvent, history: &History, terminal_
         });
     }
 
-    let after = press(session.view, character, key.modifiers, history.len(), page(terminal_height));
+    let after = match_jump(&session, character, key.modifiers).map_or_else(
+        || press(session.view, character, key.modifiers, history.len(), page(terminal_height)),
+        |selected| View { selected, ..session.view },
+    );
 
     Step::Continue(Session {
         view: settle(session.view, after, history, terminal_width),
