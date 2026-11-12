@@ -7,7 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- The status line on the last row is permanent, from launch to exit, and the list keeps the same height: it shows the position of the selected commit on the commits loaded, like `42/1,204`, with a `…` while git reads, and `loading… N commits` is gone. A git failure still shows in red in its place.
+- The status line on the last row is permanent, from launch to exit, and the list keeps the same height: it shows the repository name, the branch of HEAD (the short hash when detached) and the position of the selected commit on the commits loaded, like `42/1,204`, with a `…` while git reads, and `loading… N commits` is gone. A git failure still shows in red in its place.
 - The graph follows the selected commit: when the selection changes, it shifts just enough to show the commit's node, and `h` and `l` still scroll it freely until the next change of selection.
 - The graph takes at most a quarter of the terminal width instead of a third, which leaves more room to the subject.
 - The author column has a width of fifteen cells instead of twenty.
