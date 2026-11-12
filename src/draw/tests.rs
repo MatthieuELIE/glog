@@ -497,10 +497,6 @@ fn cell_at<'a>(buffer: &'a Buffer, y: u16, text: &str) -> &'a ratatui::buffer::C
     &buffer[(column_of(buffer, y, text), y)]
 }
 
-fn colour_at(buffer: &Buffer, y: u16, text: &str) -> Color {
-    cell_at(buffer, y, text).fg
-}
-
 #[test]
 fn shows_the_refs_of_a_commit_as_pills_before_its_message() {
     let log = badge_log("HEAD -> refs/heads/main, refs/remotes/origin/main, refs/remotes/origin/HEAD, tag: refs/tags/v1.0");
@@ -509,13 +505,17 @@ fn shows_the_refs_of_a_commit_as_pills_before_its_message() {
 
     assert_eq!(
         row_text(&buffer, 0).trim_end(),
-        "○ aaaaaaa 1d   Ann              HEAD   main   origin/main   ◆ v1.0  subject"
+        "○ aaaaaaa 1d   Ann              main   origin/main   ◆ v1.0  subject"
     );
 }
 
 #[test]
 fn paints_a_pill_on_its_name_between_two_spaces_and_leaves_the_separator_unpainted() {
-    let log = [line("bbbbbbb", "aaaaaaa", "", "1913600", "Ann", "child"), badge_log("refs/heads/main, refs/remotes/origin/main")].join("\n");
+    let log = [
+        line("bbbbbbb", "aaaaaaa", "", "1913600", "Ann", "child"),
+        badge_log("refs/heads/main, refs/remotes/origin/main"),
+    ]
+    .join("\n");
     let buffer = draw(&log, 80, 2);
 
     let start = column_of(&buffer, 1, " main ");
@@ -558,7 +558,11 @@ fn colours_a_local_branch_pill_in_the_lane_colour_of_its_commit_with_dark_text()
 
 #[test]
 fn colours_a_remote_branch_pill_in_surface1_with_subtext() {
-    let log = [line("bbbbbbb", "aaaaaaa", "", "1913600", "Ann", "child"), badge_log("refs/remotes/origin/main")].join("\n");
+    let log = [
+        line("bbbbbbb", "aaaaaaa", "", "1913600", "Ann", "child"),
+        badge_log("refs/remotes/origin/main"),
+    ]
+    .join("\n");
     let buffer = draw(&log, 80, 2);
 
     let pill = cell_at(&buffer, 1, "origin/main");
@@ -578,6 +582,31 @@ fn colours_a_tag_pill_in_yellow_with_dark_text_and_keeps_its_diamond() {
 
 fn is_bold(buffer: &Buffer, y: u16, text: &str) -> bool {
     cell_at(buffer, y, text).modifier.contains(ratatui::style::Modifier::BOLD)
+}
+
+#[test]
+fn shows_the_branch_of_head_in_bold_without_a_head_pill() {
+    let buffer = draw(&badge_log("HEAD -> refs/heads/main"), 80, 1);
+
+    let row = row_text(&buffer, 0);
+    assert!(!row.contains("HEAD"));
+    assert!(row.starts_with("○ "));
+    assert!(is_bold(&buffer, 0, "main"));
+    assert_eq!(cell_at(&buffer, 0, "main").bg, MAUVE);
+    assert_eq!(cell_at(&buffer, 0, "main").fg, BASE);
+}
+
+#[test]
+fn bolds_only_the_branch_of_head_among_the_local_branches_of_its_commit() {
+    let buffer = draw(&badge_log("refs/heads/alpha, HEAD -> refs/heads/zeta, refs/heads/beta"), 80, 1);
+
+    assert_eq!(
+        row_text(&buffer, 0).trim_end(),
+        "○ aaaaaaa 1d   Ann              zeta   alpha   beta  subject"
+    );
+    assert!(is_bold(&buffer, 0, "zeta"));
+    assert!(!is_bold(&buffer, 0, "alpha"));
+    assert!(!is_bold(&buffer, 0, "beta"));
 }
 
 #[test]
@@ -664,7 +693,7 @@ fn orders_pills_head_then_local_then_remote_then_tags_keeping_git_order_within_a
 
     assert_eq!(
         row_text(&buffer, 0).trim_end(),
-        "○ aaaaaaa 1d   Ann              HEAD   zeta   feature/a   main   origin/feature/a   ◆ v1  subject"
+        "○ aaaaaaa 1d   Ann              main   zeta   feature/a   origin/feature/a   ◆ v1  subject"
     );
 }
 

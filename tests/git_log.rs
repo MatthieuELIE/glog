@@ -38,7 +38,7 @@ fn reads_commits_of_every_ref_and_finds_head_in_real_refs() {
     assert_eq!(commits.len(), 2);
     let head: Vec<_> = commits
         .iter()
-        .filter(|commit| commit.refs.iter().any(|r| r.kind == RefKind::Head))
+        .filter(|commit| commit.refs.iter().any(|r| r.kind == RefKind::HeadBranch))
         .collect();
     assert_eq!(head.len(), 1);
     assert_eq!(head[0].subject, "on main");
@@ -61,14 +61,13 @@ fn reads_local_branches_remote_branches_tags_and_head_from_real_refs() {
     let commits = read_commits(dir.path());
     let mut found = badges(&commits[0]);
 
-    assert_eq!(found[0], (RefKind::Head, "HEAD"));
+    assert_eq!(found[0], (RefKind::HeadBranch, "main"));
     found.sort_by_key(|(_, name)| *name);
     assert_eq!(
         found,
         [
-            (RefKind::Head, "HEAD"),
             (RefKind::Local, "feature/x"),
-            (RefKind::Local, "main"),
+            (RefKind::HeadBranch, "main"),
             (RefKind::Remote, "origin/main"),
             (RefKind::Tag, "v1"),
         ]

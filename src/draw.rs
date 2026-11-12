@@ -13,7 +13,7 @@ use crate::{
     lanes::{Cell, advance, cells},
     nav::{Loading, View},
     parse::{Ref, RefKind},
-    theme::{BASE, LANE_COLORS,LAVENDER, OVERLAY, RED, SUBTEXT, SURFACE1, TEXT, YELLOW},
+    theme::{BASE, LANE_COLORS, LAVENDER, OVERLAY, RED, SUBTEXT, SURFACE1, TEXT, YELLOW},
 };
 
 const DATE_WIDTH: usize = 4;
@@ -102,6 +102,7 @@ fn graph_spans(cells: &[Cell], offset: usize, graph_width: usize, window_width: 
 fn badge_style(reference: &Ref, node_color: u32) -> Style {
     match reference.kind {
         RefKind::Head => Style::new().fg(BASE).bg(TEXT).add_modifier(Modifier::BOLD),
+        RefKind::HeadBranch => Style::new().fg(BASE).bg(lane_color(node_color)).add_modifier(Modifier::BOLD),
         RefKind::Local => Style::new().fg(BASE).bg(lane_color(node_color)),
         RefKind::Remote => Style::new().fg(SUBTEXT).bg(SURFACE1),
         RefKind::Tag => Style::new().fg(BASE).bg(YELLOW),
@@ -144,7 +145,7 @@ fn commit_line(history: &History, row: usize, graph: Vec<Span<'static>>, node_co
 }
 
 fn is_head(refs: &[Ref]) -> bool {
-    refs.iter().any(|reference| reference.kind == RefKind::Head)
+    refs.iter().any(|reference| matches!(reference.kind, RefKind::Head | RefKind::HeadBranch))
 }
 
 fn status_line(history: &History, loading: &Loading) -> Option<Span<'static>> {

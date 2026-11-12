@@ -3,6 +3,7 @@ const FIELD_SEPARATOR: char = '\x1f';
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum RefKind {
     Head,
+    HeadBranch,
     Local,
     Remote,
     Tag,
@@ -43,7 +44,10 @@ fn parse_ref(decoration: &str) -> Vec<Ref> {
         return vec![named(RefKind::Head, "HEAD")];
     }
     if let Some(branch) = decoration.strip_prefix("HEAD -> ") {
-        return vec![named(RefKind::Head, "HEAD"), local(branch)];
+        return vec![Ref {
+            kind: RefKind::HeadBranch,
+            ..local(branch)
+        }];
     }
     if let Some(tag) = decoration.strip_prefix("tag: ") {
         return vec![named(RefKind::Tag, tag.strip_prefix("refs/tags/").unwrap_or(tag))];
