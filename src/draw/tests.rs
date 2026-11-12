@@ -2044,3 +2044,120 @@ fn a_query_that_finds_nothing_shows_no_match_in_red_after_the_query() {
     assert_eq!(buffer[(1, 5)].fg, TEXT_COLOR);
     assert_eq!(highlighted_rows(&buffer), vec![2]);
 }
+
+const YELLOW_COLOR: Color = Color::Rgb(0xf9, 0xe2, 0xaf);
+
+fn marked_text(buffer: &Buffer, y: u16) -> String {
+    (0..buffer.area.width)
+        .filter(|&x| buffer[(x, y)].bg == YELLOW_COLOR && buffer[(x, y)].fg == BASE_COLOR)
+        .map(|x| buffer[(x, y)].symbol().to_string())
+        .collect()
+}
+
+fn underlined_text(buffer: &Buffer, y: u16) -> String {
+    (0..buffer.area.width)
+        .filter(|&x| buffer[(x, y)].modifier.contains(Modifier::UNDERLINED | Modifier::BOLD))
+        .map(|x| buffer[(x, y)].symbol().to_string())
+        .collect()
+}
+
+fn marked_rows(buffer: &Buffer) -> Vec<(u16, String)> {
+    (0..buffer.area.height - 1)
+        .map(|y| (y, marked_text(buffer, y)))
+        .filter(|(_, text)| !text.is_empty())
+        .collect()
+}
+
+fn parser_log() -> String {
+    [
+        commit("aaaaaaa1111", "", "Ann", "fix the parser"),
+        commit("bbbbbbb2222", "", "Bob Marley", "add a test"),
+        commit("ccccccc3333", "", "Cat", "tidy the code"),
+    ]
+    .join("\n")
+}
+
+#[test]
+fn a_search_marks_the_matching_word_of_the_subject_in_dark_text_on_yellow() {
+    let buffer = searched(&parser_log(), 3, "parser");
+
+    assert_eq!(marked_rows(&buffer), vec![(0, "parser".to_string())]);
+}
+
+#[test]
+fn a_search_marks_the_matching_part_of_the_author() {
+    let buffer = searched(&parser_log(), 3, "marl");
+
+    assert_eq!(marked_rows(&buffer), vec![(1, "Marl".to_string())]);
+}
+
+#[test]
+fn a_search_marks_the_matching_part_of_the_short_hash() {
+    let buffer = searched(&parser_log(), 3, "bbbb");
+
+    assert_eq!(marked_rows(&buffer), vec![(1, "bbbb".to_string())]);
+}
+
+#[test]
+fn the_marked_text_keeps_dark_on_yellow_on_the_selected_row() {
+    let buffer = searched(&parser_log(), 3, "parser");
+
+    assert_eq!(highlighted_rows(&buffer), vec![0]);
+    assert_eq!(marked_text(&buffer, 0), "parser");
+}
+
+#[test]
+fn the_marked_text_follows_the_case_rule_of_the_query() {
+    let log = commit("aaaaaaa", "", "Ann", "bob and Bob");
+
+    assert_eq!(marked_text(&searched(&log, 1, "bob"), 0), "bob");
+    assert_eq!(marked_text(&searched(&log, 1, "Bob"), 0), "Bob");
+}
+
+#[test]
+fn a_pasted_hash_longer_than_the_short_hash_marks_the_whole_short_hash() {
+    let buffer = searched(&parser_log(), 3, "bbbbbbb2222");
+
+    assert_eq!(marked_rows(&buffer), vec![(1, "bbbbbbb".to_string())]);
+}
+
+#[test]
+fn a_match_in_the_cut_part_of_the_subject_or_the_author_marks_nothing() {
+    let log = commit("aaaaaaa", "", "Alexandria Longname", "a long subject that ends with needle");
+
+    assert_eq!(marked_rows(&draw_inputs(&log, 40, 1, &searching("needle"))), Vec::<(u16, String)>::new());
+    assert_eq!(marked_rows(&draw_inputs(&log, 60, 1, &searching("name"))), Vec::<(u16, String)>::new());
+}
+
+#[test]
+fn a_search_marks_the_matching_part_of_a_badge_with_bold_and_underline_keeping_its_colours() {
+    let log = commit("aaaaaaa", "HEAD -> main, tag: v1.0", "Ann", "first");
+    let buffer = searched(&log, 1, "ain");
+    let x = (0..buffer.area.width)
+        .find(|&x| buffer[(x, 0)].modifier.contains(Modifier::UNDERLINED))
+        .unwrap();
+
+    assert_eq!(underlined_text(&buffer, 0), "ain");
+    assert_ne!(buffer[(x, 0)].bg, YELLOW_COLOR);
+    assert_eq!(buffer[(x, 0)].fg, BASE_COLOR);
+    assert_eq!(underlined_text(&searched(&log, 1, "v1"), 0), "v1");
+}
+
+#[test]
+fn the_previous_marks_stay_during_a_new_input_and_after_escape_abandons_it() {
+    let during = [searching("parser"), typed("/mar")].concat();
+    let abandoned = [during.clone(), vec![press_key(KeyCode::Esc)]].concat();
+
+    assert_eq!(marked_rows(&draw_inputs(&parser_log(), 60, 3, &during)), vec![(0, "parser".to_string())]);
+    assert_eq!(
+        marked_rows(&draw_inputs(&parser_log(), 60, 3, &abandoned)),
+        vec![(0, "parser".to_string())]
+    );
+}
+
+#[test]
+fn escape_outside_the_input_clears_the_marks() {
+    let inputs = [searching("parser"), vec![press_key(KeyCode::Esc)]].concat();
+
+    assert_eq!(marked_rows(&draw_inputs(&parser_log(), 60, 3, &inputs)), Vec::<(u16, String)>::new());
+}

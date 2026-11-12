@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use crate::history::History;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -25,6 +27,35 @@ fn starts_with(query: &str, field: &str) -> bool {
     }
 
     query.starts_with(field)
+}
+
+pub fn find(field: &str, query: &str) -> Option<Range<usize>> {
+    if query.is_empty() {
+        return None;
+    }
+
+    if !ignores_case(query) {
+        return field.find(query).map(|start| start..start + query.len());
+    }
+
+    let mut lowered = String::new();
+    let mut origins = Vec::new();
+    for (start, character) in field.char_indices() {
+        let lower: String = character.to_lowercase().collect();
+        origins.extend(lower.bytes().map(|_| start..start + character.len_utf8()));
+        lowered.push_str(&lower);
+    }
+    let start = lowered.find(query)?;
+
+    Some(origins[start].start..origins[start + query.len() - 1].end)
+}
+
+pub fn find_in_hash(hash: &str, query: &str) -> Option<Range<usize>> {
+    if starts_with(query, hash) {
+        return Some(0..hash.len());
+    }
+
+    find(hash, query)
 }
 
 fn is_match(history: &History, row: usize, query: &str) -> bool {
