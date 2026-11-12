@@ -6,8 +6,8 @@ import subprocess
 import termios
 import time
 
-# ratatui hides the cursor as the last write of every draw, so this sequence closes a frame.
-FRAME_END = b"\x1b[?25l"
+# ratatui hides the cursor as the last write of a draw, or shows it when the frame places it, as in the search input.
+FRAME_ENDS = (b"\x1b[?25l", b"\x1b[?25h")
 
 
 def start(binary, directory, columns, rows):
@@ -31,7 +31,7 @@ def wait_frame(master, timeout):
     """Read until a frame ends; false when none does within `timeout` seconds."""
     deadline = time.monotonic() + timeout
     seen = b""
-    while FRAME_END not in seen:
+    while not any(end in seen for end in FRAME_ENDS):
         readable, _, _ = select.select([master], [], [], max(0, deadline - time.monotonic()))
         if not readable:
             return False
