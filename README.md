@@ -2,7 +2,7 @@
 
 A read-only, coloured git log graph for the terminal: every branch, remote and tag of a repository in one scrollable view.
 
-![The glog view on a repository with a feature branch, merged pull requests and remote branches, with the selection on a commit in the middle of the history](docs/images/graph.png)
+![The glog view on a repository with a feature branch, merged pull requests and remote branches: coloured branch pills, grey remote pills and yellow tag pills, a 15-cell author column, and the selected commit in the middle of the history on a soft background with a bold subject](docs/images/graph.png)
 
 ## Install
 
@@ -34,10 +34,11 @@ Run `glog` in a git repository. It reads the current folder and changes nothing.
 
 ## Reading the graph
 
-- `●` is a commit and `○` is HEAD, which also carries a bold `[HEAD]` badge.
+- `●` is a commit and `○` is HEAD.
 - Each lane, a line of history that branches off and merges back, has its own colour.
-- The graph takes at most a third of the terminal width. When lanes are hidden, a dimmed `…` on its left or right edge says on which side: `h` and `l` scroll the graph one lane at a time.
-- Badges name the refs on a commit: local branches in colour, remote branches dimmed, and tags with a yellow `◆`.
+- The graph takes at most a quarter of the terminal width. When lanes are hidden, the two cells on that edge of the graph fade to dark grey, on the left or the right: `h` and `l` scroll the graph one lane at a time.
+- Badges are pills, a name on a coloured background, and name the refs on a commit: local branches in their lane's colour, remote branches in grey, and tags in yellow with a `◆`. The branch HEAD is on is the first pill, in bold; a detached HEAD shows a bold `HEAD` pill instead.
+- Colour is kept for the graph and the badges: the hash and the date are the dimmest text, the author is a step lighter and the subject is the lightest. The selected row has a soft background and a bold subject.
 
 ## Requirements
 
