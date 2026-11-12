@@ -69,6 +69,29 @@ pub fn max_offset(max_lanes: usize, terminal_width: usize) -> usize {
         .div_ceil(CELLS_PER_LANE)
 }
 
+pub fn reveal_offset(offset: usize, node_column: usize, max_lanes: usize, terminal_width: usize) -> usize {
+    let graph_width = graph_width(max_lanes);
+    let window_width = window_width(graph_width, terminal_width);
+    let cell = node_column * CELLS_PER_LANE;
+    let (first, last) = reveal_range(cell, graph_width, window_width);
+
+    offset.max(first).min(last).min(max_offset(max_lanes, terminal_width))
+}
+
+fn reveal_range(cell: usize, graph_width: usize, window_width: usize) -> (usize, usize) {
+    if window_width < MIN_DIMMED_WINDOW {
+        return ((cell + 1).saturating_sub(window_width).div_ceil(CELLS_PER_LANE), cell / CELLS_PER_LANE);
+    }
+
+    let without_right_edge = graph_width.saturating_sub(window_width);
+    let with_right_edge = (cell + 1 + EDGE_CELLS).saturating_sub(window_width);
+
+    (
+        without_right_edge.min(with_right_edge).div_ceil(CELLS_PER_LANE),
+        cell.saturating_sub(EDGE_CELLS) / CELLS_PER_LANE,
+    )
+}
+
 fn dim<'a>(spans: impl Iterator<Item = &'a mut Span<'static>>) {
     for span in spans {
         span.style = Style::new().fg(SURFACE1);

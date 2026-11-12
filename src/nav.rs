@@ -96,6 +96,17 @@ pub fn fit(view: View, len: usize, height: usize, max_offset: usize) -> View {
     }
 }
 
+pub fn follow(before: View, after: View, node_offset: usize) -> View {
+    if after.selected == before.selected {
+        return after;
+    }
+
+    View {
+        offset: node_offset,
+        ..after
+    }
+}
+
 pub fn quits(key: char, modifiers: KeyModifiers) -> bool {
     key == 'q' || (key == 'c' && modifiers.contains(KeyModifiers::CONTROL))
 }

@@ -1,9 +1,9 @@
 use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, crossterm::event::KeyModifiers, style::Color};
 
 use crate::{
-    draw::{max_offset, render},
+    draw::{max_offset, render, reveal_offset},
     history::History,
-    nav::{Loading, View, fit, page, press},
+    nav::{Loading, View, fit, follow, page, press},
     parse::parse,
 };
 
@@ -55,7 +55,10 @@ fn draw_loading_chords(log: &str, width: u16, height: u16, keys: &[(char, KeyMod
     view = frame_after(view);
     let page = page(usize::from(height), loading);
     for &(key, modifiers) in keys {
-        view = frame_after(press(view, key, modifiers, history.len(), page));
+        let after = press(view, key, modifiers, history.len(), page);
+        let node_column = history.lane_row(after.selected).node_column as usize;
+        let node_offset = reveal_offset(after.offset, node_column, history.max_lanes(), usize::from(width));
+        view = frame_after(follow(view, after, node_offset));
     }
 
     terminal.backend().buffer().clone()
@@ -855,12 +858,12 @@ fn dims_no_edge_when_the_graph_fits_in_the_window() {
 }
 
 #[test]
-fn h_and_l_keep_the_selection_and_j_and_k_keep_the_shift() {
+fn h_and_l_keep_the_selection_and_j_and_k_bring_the_node_back() {
     let log = many_branches_log(6);
 
     assert_eq!(highlighted_rows(&draw_after(&log, 24, 7, "jjlh")), vec![2]);
-    assert_eq!(draw_after(&log, 24, 7, "jjll"), draw_after(&log, 24, 7, "lljj"));
-    assert_eq!(draw_after(&log, 24, 7, "lljk"), draw_after(&log, 24, 7, "ll"));
+    assert_eq!(draw_after(&log, 24, 7, "lljj"), draw_after(&log, 24, 7, "jj"));
+    assert_eq!(draw_after(&log, 24, 7, "lljk"), draw_after(&log, 24, 7, ""));
 }
 
 fn parent_hash(n: usize, count: usize, last_parent: &str) -> String {
@@ -1047,4 +1050,111 @@ fn keeps_the_selection_on_the_same_commit_when_more_commits_arrive() {
     assert_eq!(before, Some(1));
     assert_eq!(selected_row(buffer), before);
     assert!(row_text(buffer, 1).contains("second"));
+}
+
+fn node_cell(buffer: &Buffer, y: u16) -> Option<u16> {
+    (0..6).find(|&x| matches!(buffer[(x, y)].symbol(), "●" | "○"))
+}
+
+fn assert_node_shown(buffer: &Buffer) {
+    let y = selected_row(buffer).unwrap();
+    let node = node_cell(buffer, y).unwrap_or_else(|| panic!("no node on the selected row {y}"));
+
+    assert!(!dimmed_cells(buffer, y, 6).contains(&node), "node at {node} is in a dimmed edge");
+}
+
+#[test]
+fn shows_the_node_of_the_selected_commit_after_each_j() {
+    let log = many_branches_log(6);
+
+    for presses in 0..=5 {
+        assert_node_shown(&draw_after(&log, 24, 7, &"j".repeat(presses)));
+    }
+}
+
+#[test]
+fn shows_the_node_of_the_selected_commit_after_g_and_big_jumps() {
+    let log = many_branches_log(6);
+    let down = [('d', KeyModifiers::CONTROL)];
+    let up = [('u', KeyModifiers::CONTROL)];
+
+    assert_node_shown(&draw_chords(&log, 24, 7, &down));
+    assert_node_shown(&draw_chords(&log, 24, 7, &[down[0], down[0]]));
+    assert_node_shown(&draw_chords(&log, 24, 7, &[down[0], down[0], up[0]]));
+    assert_node_shown(&draw_after(&log, 24, 7, "G"));
+    assert_node_shown(&draw_after(&log, 24, 7, "Gg"));
+    assert_node_shown(&draw_after(&log, 24, 7, "jjjjjg"));
+}
+
+#[test]
+fn leaves_the_window_where_it_is_when_the_node_is_already_visible() {
+    let log = many_branches_log(6);
+
+    assert_eq!(dimmed_cells(&draw_after(&log, 24, 7, "j"), 1, 6), [4, 5]);
+    assert_eq!(dimmed_cells(&draw_after(&log, 24, 7, "jjjjjk"), 4, 6), [0, 1]);
+}
+
+#[test]
+fn shifts_the_window_by_the_least_amount_towards_the_node_on_either_side() {
+    let log = many_branches_log(6);
+
+    assert_eq!(dimmed_cells(&draw_after(&log, 24, 7, "jj"), 2, 6), [0, 1, 4, 5]);
+    assert_eq!(graph(&draw_after(&log, 24, 7, "jj"), 2, 6), "│ ●   ");
+    assert_eq!(dimmed_cells(&draw_after(&log, 24, 7, "jjjjjkk"), 3, 6), [0, 1, 4, 5]);
+    assert_eq!(graph(&draw_after(&log, 24, 7, "jjjjjkk"), 3, 6), "│ ●   ");
+}
+
+#[test]
+fn keeps_the_edge_on_the_side_of_hidden_lanes_after_a_follow() {
+    let log = many_branches_log(6);
+
+    assert_eq!(dimmed_cells(&draw_after(&log, 24, 7, "jjjjj"), 5, 6), [0, 1]);
+    assert_eq!(dimmed_cells(&draw_after(&log, 24, 7, "jjjjjg"), 0, 6), [4, 5]);
+}
+
+#[test]
+fn changes_nothing_on_a_graph_that_fits_in_the_window() {
+    let log = many_branches_log(3);
+
+    assert_eq!(dimmed_cells(&draw_after(&log, 40, 4, "jjj"), 2, 5), Vec::<u16>::new());
+    assert_eq!(graph(&draw_after(&log, 40, 4, "jj"), 2, 5), "│ │ ●");
+}
+
+fn is_revealed(offset: usize, cell: usize, graph_width: usize, window: usize) -> bool {
+    let start = offset * 2;
+    let left_edge = if window >= 5 && offset > 0 { 2 } else { 0 };
+    let right_edge = if window >= 5 && start + window < graph_width { 2 } else { 0 };
+
+    cell >= start + left_edge && cell + right_edge < start + window
+}
+
+#[test]
+fn reveal_offset_is_the_closest_offset_that_shows_the_node_whatever_the_geometry() {
+    for max_lanes in 1..=12 {
+        for terminal_width in 0..=60 {
+            let graph_width = 2 * max_lanes - 1;
+            let window = graph_width.min(terminal_width / 4);
+            let max = max_offset(max_lanes, terminal_width);
+
+            for node_column in 0..max_lanes {
+                let cell = 2 * node_column;
+                let revealable: Vec<usize> = (0..=max).filter(|&o| is_revealed(o, cell, graph_width, window)).collect();
+                if revealable.is_empty() {
+                    continue;
+                }
+
+                for offset in 0..=max + 2 {
+                    let closest = revealable.iter().copied().min_by_key(|&o| o.abs_diff(offset)).unwrap();
+                    let got = reveal_offset(offset, node_column, max_lanes, terminal_width);
+
+                    assert_eq!(
+                        got.abs_diff(offset),
+                        closest.abs_diff(offset),
+                        "{max_lanes} {terminal_width} {node_column} {offset}"
+                    );
+                    assert!(revealable.contains(&got), "{max_lanes} {terminal_width} {node_column} {offset}: {got}");
+                }
+            }
+        }
+    }
 }

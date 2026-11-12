@@ -1,6 +1,6 @@
 use ratatui::crossterm::event::KeyModifiers;
 
-use crate::nav::{Loading, View, fit, list_height, page, press, quits};
+use crate::nav::{Loading, View, fit, follow, list_height, page, press, quits};
 
 #[test]
 fn q_quits() {
@@ -103,4 +103,32 @@ fn a_page_is_half_the_list_height_and_at_least_one_row() {
     assert_eq!(page(50, &Loading::Reading), 24);
     assert_eq!(page(1, &Loading::Done), 1);
     assert_eq!(page(0, &Loading::Done), 1);
+}
+
+#[test]
+fn follow_takes_the_node_offset_when_the_selection_changed() {
+    let before = View {
+        selected: 1,
+        top: 0,
+        offset: 2,
+    };
+    let after = View {
+        selected: 2,
+        top: 0,
+        offset: 2,
+    };
+
+    assert_eq!(follow(before, after, 7), View { offset: 7, ..after });
+}
+
+#[test]
+fn follow_keeps_the_view_when_the_selection_did_not_change() {
+    let before = View {
+        selected: 1,
+        top: 0,
+        offset: 2,
+    };
+    let after = View { offset: 3, ..before };
+
+    assert_eq!(follow(before, after, 7), after);
 }
