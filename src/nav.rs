@@ -13,16 +13,12 @@ pub enum Loading {
     Failed(String),
 }
 
-pub fn list_height(terminal_height: usize, loading: &Loading) -> usize {
-    if matches!(loading, Loading::Done) {
-        return terminal_height;
-    }
-
+pub fn list_height(terminal_height: usize) -> usize {
     terminal_height.saturating_sub(1)
 }
 
-pub fn page(terminal_height: usize, loading: &Loading) -> usize {
-    (list_height(terminal_height, loading) / 2).max(1)
+pub fn page(terminal_height: usize) -> usize {
+    (list_height(terminal_height) / 2).max(1)
 }
 
 pub fn press(view: View, key: char, modifiers: KeyModifiers, len: usize, page: usize) -> View {

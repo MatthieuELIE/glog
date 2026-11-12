@@ -188,22 +188,42 @@ fn is_head(refs: &[Ref]) -> bool {
     refs.iter().any(|reference| matches!(reference.kind, RefKind::Head | RefKind::HeadBranch))
 }
 
-fn status_line(history: &History, loading: &Loading) -> Option<Span<'static>> {
-    match loading {
-        Loading::Done => None,
-        Loading::Reading => Some(Span::styled(format!("loading… {} commits", history.len()), Style::new().fg(OVERLAY))),
-        Loading::Failed(message) => Some(Span::styled(message.lines().next().unwrap_or_default().to_string(), Style::new().fg(RED))),
+fn thousands(number: usize) -> String {
+    let digits = number.to_string();
+    let mut grouped = String::new();
+    for (index, digit) in digits.chars().enumerate() {
+        if index > 0 && (digits.len() - index).is_multiple_of(3) {
+            grouped.push(',');
+        }
+        grouped.push(digit);
     }
+
+    grouped
+}
+
+fn status_line(rank: usize, total: usize, loading: &Loading, width: usize) -> Line<'static> {
+    if let Loading::Failed(message) = loading {
+        let first_line = message.lines().next().unwrap_or_default();
+
+        return Line::styled(truncate(first_line, width), Style::new().fg(RED));
+    }
+
+    let mut position = format!("{}/{}", thousands(rank), thousands(total));
+    if matches!(loading, Loading::Reading) {
+        position.push(ELLIPSIS);
+    }
+
+    Line::styled(position, Style::new().fg(OVERLAY)).right_aligned()
 }
 
 pub fn render(frame: &mut Frame, history: &History, view: View, loading: &Loading, now: i64) {
     let full = frame.area();
-    let mut list_area = full;
-    if let Some(span) = status_line(history, loading) {
-        let [list, status] = Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]).areas(full);
-        list_area = list;
-        frame.render_widget(Paragraph::new(Line::from(span)), status);
-    }
+    let [list_area, status_area] = Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]).areas(full);
+    let rank = (view.selected + 1).min(history.len());
+    frame.render_widget(
+        Paragraph::new(status_line(rank, history.len(), loading, usize::from(full.width))),
+        status_area,
+    );
 
     let graph_width = graph_width(history.max_lanes());
     let terminal_width = usize::from(full.width);

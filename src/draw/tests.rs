@@ -39,7 +39,7 @@ fn draw_loading_chords(log: &str, width: u16, height: u16, keys: &[(char, KeyMod
     for commit in parse(log) {
         history.push(commit);
     }
-    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+    let mut terminal = Terminal::new(TestBackend::new(width, height + 1)).unwrap();
     let mut view = View::default();
     let mut frame_after = |view: View| {
         let view = fit(
@@ -53,7 +53,7 @@ fn draw_loading_chords(log: &str, width: u16, height: u16, keys: &[(char, KeyMod
         view
     };
     view = frame_after(view);
-    let page = page(usize::from(height), loading);
+    let page = page(usize::from(height) + 1);
     for &(key, modifiers) in keys {
         let after = press(view, key, modifiers, history.len(), page);
         let node_column = history.lane_row(after.selected).node_column as usize;
@@ -992,27 +992,102 @@ fn three_commits() -> String {
     .join("\n")
 }
 
+const OVERLAY_COLOR: Color = Color::Rgb(0x6c, 0x70, 0x86);
+
+fn last_row(buffer: &Buffer) -> String {
+    row_text(buffer, buffer.area.height - 1)
+}
+
 #[test]
-fn shows_the_loading_count_in_overlay_on_the_last_row_while_reading() {
+fn shows_the_selected_rank_over_the_total_right_aligned_in_overlay() {
+    let buffer = draw_loading(&three_commits(), 60, 4, "", &Loading::Done);
+
+    assert_eq!(last_row(&buffer), format!("{}1/3", " ".repeat(57)));
+    assert_eq!(buffer[(57, 4)].fg, OVERLAY_COLOR);
+    assert_eq!(buffer[(57, 4)].bg, Color::Reset);
+}
+
+#[test]
+fn the_position_follows_the_selection() {
+    assert!(last_row(&draw_loading(&three_commits(), 60, 4, "jj", &Loading::Done)).ends_with("3/3"));
+    assert!(last_row(&draw_loading(&three_commits(), 60, 4, "jjk", &Loading::Done)).ends_with("2/3"));
+    assert!(last_row(&draw_loading(&three_commits(), 60, 4, "G", &Loading::Done)).ends_with("3/3"));
+}
+
+#[test]
+fn ctrl_d_moves_the_same_half_page_while_reading_and_once_done() {
+    let log = (0..100)
+        .map(|index| {
+            line(
+                &format!("{:07x}", 100 - index),
+                &format!("{:07x}", 99 - index),
+                "",
+                "1913600",
+                "Ann",
+                "commit",
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let chord = [('d', KeyModifiers::CONTROL)];
+
+    let reading = draw_loading_chords(&log, 60, 20, &chord, &Loading::Reading);
+    let done = draw_loading_chords(&log, 60, 20, &chord, &Loading::Done);
+
+    assert!(last_row(&reading).ends_with("11/100…"));
+    assert!(last_row(&done).ends_with("11/100"));
+}
+
+#[test]
+fn separates_thousands_with_commas_in_the_rank_and_the_total() {
+    let log = (0..1_204)
+        .map(|index| {
+            line(
+                &format!("{:07x}", 1_204 - index),
+                &format!("{:07x}", 1_203 - index),
+                "",
+                "1913600",
+                "Ann",
+                "commit",
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let buffer = draw_after(&log, 60, 5, &"j".repeat(1_113));
+
+    assert!(last_row(&buffer).ends_with("1,114/1,204"));
+}
+
+#[test]
+fn follows_the_total_with_an_ellipsis_while_reading() {
+    let buffer = draw_loading(&three_commits(), 60, 4, "j", &Loading::Reading);
+
+    assert!(last_row(&buffer).ends_with("2/3…"));
+    assert_eq!(buffer[(56, 4)].fg, OVERLAY_COLOR);
+}
+
+#[test]
+fn no_longer_shows_the_loading_count() {
     let buffer = draw_loading(&three_commits(), 60, 4, "", &Loading::Reading);
 
-    assert_eq!(row_text(&buffer, 3).trim_end(), "loading… 3 commits");
-    assert_eq!(buffer[(0, 3)].fg, Color::Rgb(0x6c, 0x70, 0x86));
+    assert!(!last_row(&buffer).contains("loading"));
 }
 
 #[test]
-fn gives_the_last_row_to_the_status_line_while_reading() {
-    let buffer = draw_loading(&three_commits(), 60, 3, "", &Loading::Reading);
+fn keeps_the_list_height_while_reading_and_once_done() {
+    let reading = draw_loading(&three_commits(), 60, 3, "", &Loading::Reading);
+    let done = draw_loading(&three_commits(), 60, 3, "", &Loading::Done);
 
-    assert!(row_text(&buffer, 1).contains("second"));
-    assert!(row_text(&buffer, 2).starts_with("loading…"));
+    assert!(row_text(&reading, 2).contains("first"));
+    assert!(row_text(&done, 2).contains("first"));
 }
 
 #[test]
-fn shows_a_commit_on_the_last_row_once_done() {
-    let buffer = draw_loading(&three_commits(), 60, 3, "", &Loading::Done);
+fn leaves_the_left_of_the_status_line_empty() {
+    let buffer = draw_loading(&three_commits(), 60, 4, "", &Loading::Done);
 
-    assert!(row_text(&buffer, 2).contains("first"));
+    assert_eq!(last_row(&buffer)[..50].trim(), "");
 }
 
 #[test]
@@ -1021,9 +1096,18 @@ fn shows_the_first_line_of_the_failure_in_red_and_keeps_the_commits() {
 
     let buffer = draw_loading(&three_commits(), 60, 4, "", &failed);
 
-    assert_eq!(row_text(&buffer, 3).trim_end(), "fatal: bad object");
-    assert_eq!(buffer[(0, 3)].fg, Color::Rgb(0xf3, 0x8b, 0xa8));
+    assert_eq!(last_row(&buffer).trim_end(), "fatal: bad object");
+    assert_eq!(buffer[(0, 4)].fg, Color::Rgb(0xf3, 0x8b, 0xa8));
     assert!(row_text(&buffer, 0).contains("third"));
+}
+
+#[test]
+fn truncates_the_failure_to_the_terminal_width() {
+    let failed = Loading::Failed("fatal: bad object in the repository history".to_string());
+
+    let buffer = draw_loading(&three_commits(), 20, 4, "", &failed);
+
+    assert_eq!(last_row(&buffer), "fatal: bad object i…");
 }
 
 fn selected_row(buffer: &Buffer) -> Option<u16> {

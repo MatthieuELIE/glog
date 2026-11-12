@@ -1,6 +1,6 @@
 use ratatui::crossterm::event::KeyModifiers;
 
-use crate::nav::{Loading, View, fit, follow, list_height, page, press, quits};
+use crate::nav::{View, fit, follow, list_height, page, press, quits};
 
 #[test]
 fn q_quits() {
@@ -90,19 +90,17 @@ fn d_and_u_need_ctrl_and_the_other_keys_refuse_it() {
 }
 
 #[test]
-fn the_list_loses_its_last_row_to_the_status_line_unless_loading_is_done() {
-    assert_eq!(list_height(50, &Loading::Reading), 49);
-    assert_eq!(list_height(50, &Loading::Failed(String::new())), 49);
-    assert_eq!(list_height(50, &Loading::Done), 50);
-    assert_eq!(list_height(0, &Loading::Reading), 0);
+fn the_list_always_loses_its_last_row_to_the_status_line() {
+    assert_eq!(list_height(50), 49);
+    assert_eq!(list_height(0), 0);
 }
 
 #[test]
 fn a_page_is_half_the_list_height_and_at_least_one_row() {
-    assert_eq!(page(50, &Loading::Done), 25);
-    assert_eq!(page(50, &Loading::Reading), 24);
-    assert_eq!(page(1, &Loading::Done), 1);
-    assert_eq!(page(0, &Loading::Done), 1);
+    assert_eq!(page(50), 24);
+    assert_eq!(page(51), 25);
+    assert_eq!(page(1), 1);
+    assert_eq!(page(0), 1);
 }
 
 #[test]

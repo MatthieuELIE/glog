@@ -64,7 +64,7 @@ fn event_loop(terminal: &mut DefaultTerminal, reader: &Reader, history: &mut His
         view = fit(
             view,
             history.len(),
-            list_height(usize::from(size.height), &loading),
+            list_height(usize::from(size.height)),
             max_offset(history.max_lanes(), usize::from(size.width)),
         );
         terminal.draw(|frame| render(frame, history, view, &loading, now))?;
@@ -75,7 +75,7 @@ fn event_loop(terminal: &mut DefaultTerminal, reader: &Reader, history: &mut His
             if nav::quits(character, key.modifiers) {
                 return Ok(());
             }
-            let after = press(view, character, key.modifiers, history.len(), page(usize::from(size.height), &loading));
+            let after = press(view, character, key.modifiers, history.len(), page(usize::from(size.height)));
             let node_column = history.lane_row(after.selected).node_column as usize;
             let node_offset = reveal_offset(after.offset, node_column, history.max_lanes(), usize::from(size.width));
             view = follow(view, after, node_offset);
