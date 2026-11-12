@@ -15,7 +15,11 @@ It is developed on macOS and tested on Linux; it has not been tried on Windows.
 
 ## Usage
 
-Run `glog` in a git repository. It reads the current folder and changes nothing. It opens while the history is still loading, with a permanent status line on the last row that shows the position of the selected commit, like `42/1,204`, followed by `…` until it is done.
+Run `glog` in a git repository. It reads the current folder and changes nothing. It opens while the history is still loading.
+
+The last row is a permanent status line, aligned to the right, with three pieces of information: the name of the repository, the branch of HEAD in a bold pill (the short hash when HEAD is detached), and the position of the selected commit among the commits loaded, like `glog  main  42/1,204`. The position ends with `…` while git is still reading, and the total keeps growing until it is done. If git fails, the first line of its message replaces the position, in red. On a narrow terminal the repository goes first, then the branch, and the position always stays.
+
+The repository name is the folder of the main repository, also from a subfolder or a linked worktree, and the folder name without `.git` for a bare repository. The repository and the branch are read once at launch and do not follow a checkout made elsewhere. This needs git 2.31 or later.
 
 | Key      | Action                        |
 | -------- | ----------------------------- |
