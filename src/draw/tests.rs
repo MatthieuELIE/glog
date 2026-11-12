@@ -1814,3 +1814,68 @@ fn n_walks_the_matches_of_the_previous_search_after_an_abandoned_input() {
 
     assert_eq!(highlighted_rows(&draw_inputs(&bob_on_rows_one_and_three(), 60, 5, &inputs)), vec![3]);
 }
+
+#[test]
+fn capital_n_selects_the_previous_match_up() {
+    assert_eq!(selected_after(&bob_on_rows_one_and_three(), "nN"), vec![1]);
+}
+
+#[test]
+fn capital_n_before_the_first_match_goes_to_the_last() {
+    assert_eq!(selected_after(&bob_on_rows_one_and_three(), "N"), vec![3]);
+}
+
+#[test]
+fn capital_n_starts_from_the_selection_after_j_or_k_moved_away_from_a_match() {
+    assert_eq!(selected_after(&bob_on_rows_one_and_three(), "jN"), vec![1]);
+    assert_eq!(selected_after(&bob_on_rows_one_and_three(), "jjN"), vec![1]);
+    assert_eq!(selected_after(&bob_on_rows_one_and_three(), "kN"), vec![3]);
+}
+
+#[test]
+fn capital_n_with_a_single_match_stays_on_it_or_returns_to_it() {
+    let log = bob_on_rows_one_and_three();
+    let inputs = [searching("commit d"), typed("N")].concat();
+
+    assert_eq!(highlighted_rows(&draw_inputs(&log, 60, 5, &inputs)), vec![1]);
+
+    let away = [searching("commit d"), typed("jjN")].concat();
+
+    assert_eq!(highlighted_rows(&draw_inputs(&log, 60, 5, &away)), vec![1]);
+}
+
+#[test]
+fn capital_n_does_nothing_without_a_search_or_without_a_match() {
+    let log = bob_on_rows_one_and_three();
+
+    assert_eq!(draw_after(&log, 60, 5, "jN"), draw_after(&log, 60, 5, "j"));
+
+    let inputs = [searching("nothing like it"), typed("jN")].concat();
+
+    assert_eq!(highlighted_rows(&draw_inputs(&log, 60, 5, &inputs)), vec![1]);
+}
+
+#[test]
+fn capital_n_scrolls_the_list_just_enough_to_show_the_match() {
+    let inputs = [searching("Bob"), typed("N")].concat();
+
+    let buffer = draw_inputs(&bob_on_rows_one_and_three(), 60, 2, &inputs);
+
+    assert!(row_text(&buffer, 0).contains("commit c"));
+    assert_eq!(highlighted_rows(&buffer), vec![1]);
+}
+
+#[test]
+fn the_graph_window_follows_the_node_of_the_match_reached_by_capital_n() {
+    let log = many_branches_log(6);
+    let inputs = [searching("branch"), typed("ll"), typed("N")].concat();
+
+    assert_node_shown(&draw_inputs(&log, 24, 7, &inputs));
+}
+
+#[test]
+fn capital_n_walks_the_matches_of_the_previous_search_after_an_abandoned_input() {
+    let inputs = [searching("Bob"), typed("/zzz"), vec![press_key(KeyCode::Esc)], typed("N")].concat();
+
+    assert_eq!(highlighted_rows(&draw_inputs(&bob_on_rows_one_and_three(), 60, 5, &inputs)), vec![3]);
+}

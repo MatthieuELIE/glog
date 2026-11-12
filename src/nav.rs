@@ -3,7 +3,7 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use crate::{
     draw::reveal_offset,
     history::History,
-    search::{Search, next_after, scan},
+    search::{Search, next_after, previous_before, scan},
 };
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -155,8 +155,16 @@ fn submit(session: Session, input: String, history: &History, terminal_width: us
 fn match_jump(session: &Session, key: char, modifiers: KeyModifiers) -> Option<usize> {
     let search = session.search.as_ref()?;
 
-    if key == 'n' && !modifiers.contains(KeyModifiers::CONTROL) {
+    if modifiers.contains(KeyModifiers::CONTROL) {
+        return None;
+    }
+
+    if key == 'n' {
         return next_after(&search.matches, session.view.selected);
+    }
+
+    if key == 'N' {
+        return previous_before(&search.matches, session.view.selected);
     }
 
     None
