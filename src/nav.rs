@@ -207,6 +207,10 @@ pub fn advance(mut session: Session, key: KeyEvent, history: &History, terminal_
         return type_in(session, input, key, history, terminal_width);
     }
 
+    if key.code == KeyCode::Esc {
+        return Step::Continue(Session { search: None, ..session });
+    }
+
     let KeyCode::Char(character) = key.code else {
         return Step::Continue(session);
     };
