@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- The graph follows the selected commit: when the selection changes, it shifts just enough to show the commit's node, and `h` and `l` still scroll it freely until the next change of selection.
 - The graph takes at most a quarter of the terminal width instead of a third, which leaves more room to the subject.
 - The author column has a width of fifteen cells instead of twenty.
 - When lanes are hidden, the two cells on that edge of the graph fade to dark grey instead of a dimmed `…`.
