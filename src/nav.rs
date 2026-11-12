@@ -153,6 +153,10 @@ fn submit(session: Session, input: String, history: &History, terminal_width: us
 }
 
 fn edit(input: String, key: KeyEvent) -> Option<String> {
+    if key.code == KeyCode::Esc {
+        return None;
+    }
+
     if key.code == KeyCode::Backspace {
         let mut kept = input.chars();
 

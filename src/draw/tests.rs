@@ -1689,6 +1689,27 @@ fn backspace_outside_the_input_does_nothing() {
 }
 
 #[test]
+fn escape_closes_the_input_without_searching() {
+    let inputs = [typed("/commit c"), vec![press_key(KeyCode::Esc)]].concat();
+
+    let buffer = draw_inputs(&five_commits(), 40, 5, &inputs);
+
+    assert_eq!(buffer, draw(&five_commits(), 40, 5));
+}
+
+#[test]
+fn an_abandoned_input_leaves_the_previous_search_intact() {
+    let abandoned = [searching("commit d"), typed("/commit e"), vec![press_key(KeyCode::Esc)]].concat();
+    let again = [abandoned.clone(), searching("commit")].concat();
+
+    let buffer = draw_inputs(&five_commits(), 60, 5, &abandoned);
+
+    assert_eq!(highlighted_rows(&buffer), vec![1]);
+    assert_eq!(buffer, draw_inputs(&five_commits(), 60, 5, &searching("commit d")));
+    assert_eq!(highlighted_rows(&draw_inputs(&five_commits(), 60, 5, &again)), vec![2]);
+}
+
+#[test]
 fn opening_the_input_keeps_the_list_height_and_the_half_page() {
     let log = twelve_commits();
     let list = |buffer: &Buffer| (0..12).map(|y| row_text(buffer, y)).collect::<Vec<_>>();
