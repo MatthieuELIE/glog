@@ -9,7 +9,7 @@ use ratatui::{
 use crate::{
     draw::{max_offset, render, reveal_offset},
     history::History,
-    nav::{Loading, Session, Step, View, advance, fit, press},
+    nav::{Loading, Session, Step, View, advance, complete_search, fit, press},
     parse::parse,
     read::Identity,
 };
@@ -99,7 +99,10 @@ fn replay(log: &str, width: u16, height: u16, inputs: &[Input], loading: &Loadin
                     session = next;
                 }
             }
-            Input::Commits(batch) => parse(batch).into_iter().for_each(|commit| history.push(commit)),
+            Input::Commits(batch) => {
+                parse(batch).into_iter().for_each(|commit| history.push(commit));
+                session = complete_search(session, &history);
+            }
         }
         session = frame_after(session, &history);
     }
@@ -2160,4 +2163,52 @@ fn escape_outside_the_input_clears_the_marks() {
     let inputs = [searching("parser"), vec![press_key(KeyCode::Esc)]].concat();
 
     assert_eq!(marked_rows(&draw_inputs(&parser_log(), 60, 3, &inputs)), Vec::<(u16, String)>::new());
+}
+
+fn arrived_bob() -> String {
+    commit("9999999", "", "Bob", "arrived late")
+}
+
+#[test]
+fn a_batch_with_a_match_turns_no_match_into_a_count_without_moving_the_selection() {
+    let log = [commit("1111111", "", "Ann", "first"), commit("2222222", "", "Cat", "second")].join("\n");
+    let inputs = [searching("Bob"), vec![Input::Commits(arrived_bob())]].concat();
+
+    let buffer = draw_inputs(&log, 60, 3, &inputs);
+
+    assert_eq!(last_row(&buffer), format!("/Bob  1{}1/3", " ".repeat(50)));
+    assert_eq!(highlighted_rows(&buffer), vec![0]);
+}
+
+#[test]
+fn the_counter_grows_when_a_batch_brings_more_matches() {
+    let log = [commit("1111111", "", "Bob", "first"), commit("2222222", "", "Cat", "second")].join("\n");
+    let inputs = [searching("Bob"), vec![Input::Commits(arrived_bob())]].concat();
+
+    let buffer = draw_inputs(&log, 60, 3, &inputs);
+
+    assert!(last_row(&buffer).starts_with("/Bob  1/2"));
+}
+
+#[test]
+fn n_reaches_a_match_that_arrived_after_enter_and_it_is_highlighted() {
+    let log = [commit("1111111", "", "Ann", "first"), commit("2222222", "", "Cat", "second")].join("\n");
+    let inputs = [searching("Bob"), vec![Input::Commits(arrived_bob())], typed("n")].concat();
+
+    let buffer = draw_inputs(&log, 60, 3, &inputs);
+
+    assert_eq!(highlighted_rows(&buffer), vec![2]);
+    assert!(last_row(&buffer).starts_with("/Bob  1/1"));
+    assert_eq!(marked_text(&buffer, 2), "Bob");
+}
+
+#[test]
+fn rows_already_scanned_keep_their_matches_when_a_batch_arrives() {
+    let log = [commit("1111111", "", "Ann", "first"), commit("2222222", "", "Bob", "second")].join("\n");
+    let inputs = [searching("Bob"), vec![Input::Commits(arrived_bob())]].concat();
+
+    let buffer = draw_inputs(&log, 60, 3, &inputs);
+
+    assert_eq!(highlighted_rows(&buffer), vec![1]);
+    assert!(last_row(&buffer).starts_with("/Bob  1/2"));
 }

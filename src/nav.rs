@@ -3,7 +3,7 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use crate::{
     draw::reveal_offset,
     history::History,
-    search::{Search, next_after, previous_before, scan},
+    search::{Search, complete, next_after, previous_before, scan},
 };
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -200,6 +200,13 @@ fn type_in(session: Session, input: String, key: KeyEvent, history: &History, te
         input: edit(input, key),
         ..session
     })
+}
+
+pub fn complete_search(session: Session, history: &History) -> Session {
+    Session {
+        search: session.search.map(|search| complete(search, history)),
+        ..session
+    }
 }
 
 pub fn advance(mut session: Session, key: KeyEvent, history: &History, terminal_width: usize, terminal_height: usize) -> Step {

@@ -10,7 +10,7 @@ use clap::Parser;
 use glog::{
     draw::{max_offset, render},
     history::History,
-    nav::{Loading, Session, Step, advance, fit, list_height},
+    nav::{Loading, Session, Step, advance, complete_search, fit, list_height},
     read::{Identity, Loaded, Reader, identity, start},
 };
 use ratatui::{
@@ -60,6 +60,7 @@ fn event_loop(terminal: &mut DefaultTerminal, reader: &Reader, history: &mut His
 
     loop {
         loading = drain(reader, history, loading);
+        session = complete_search(std::mem::take(&mut session), history);
         let size = terminal.size()?;
         session.view = fit(
             session.view,
