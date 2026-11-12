@@ -10,7 +10,7 @@ use clap::Parser;
 use glog::{
     draw::{max_offset, render},
     history::History,
-    nav::{Loading, Step, View, advance, fit, list_height},
+    nav::{Loading, Session, Step, advance, fit, list_height},
     read::{Identity, Loaded, Reader, identity, start},
 };
 use ratatui::{
@@ -55,23 +55,29 @@ fn key_pressed(loading: &Loading) -> io::Result<Option<event::KeyEvent>> {
 }
 
 fn event_loop(terminal: &mut DefaultTerminal, reader: &Reader, history: &mut History, identity: &Identity, now: i64) -> io::Result<()> {
-    let mut view = View::default();
+    let mut session = Session::default();
     let mut loading = Loading::Reading;
 
     loop {
         loading = drain(reader, history, loading);
         let size = terminal.size()?;
-        view = fit(
-            view,
+        session.view = fit(
+            session.view,
             history.len(),
             list_height(usize::from(size.height)),
             max_offset(history.max_lanes(), usize::from(size.width)),
         );
-        terminal.draw(|frame| render(frame, history, view, &loading, identity, now))?;
+        terminal.draw(|frame| render(frame, history, &session, &loading, identity, now))?;
 
         if let Some(key) = key_pressed(&loading)? {
-            match advance(view, key, history, usize::from(size.width), usize::from(size.height)) {
-                Step::Continue(next) => view = next,
+            match advance(
+                std::mem::take(&mut session),
+                key,
+                history,
+                usize::from(size.width),
+                usize::from(size.height),
+            ) {
+                Step::Continue(next) => session = next,
                 Step::Quit => return Ok(()),
             }
         }
