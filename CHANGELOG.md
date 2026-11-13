@@ -3,7 +3,7 @@
 Notable changes to `glog`, most recent first.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.1.3] - 2026-11-13
 
 ### Added
 
@@ -63,6 +63,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - A one-line error on stderr outside a repository (git's own message), in a repository with no commit, and for an unknown argument.
 - `glog --version` prints the version, and `glog --help` the usage and the keys, from any folder.
 
+[0.1.3]: https://github.com/MatthieuELIE/glog/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/MatthieuELIE/glog/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/MatthieuELIE/glog/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/MatthieuELIE/glog/releases/tag/v0.1.0
