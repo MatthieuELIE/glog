@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `/` opens a search input on the left of the status line, and `Enter` selects the first commit after the selection, wrapping around, whose subject, author, hash or ref names contain the query. `n` and `N` select the next and the previous match, wrapping around, and `Esc` clears the search.
+
 ### Changed
 
 - The status line on the last row is permanent, from launch to exit, and the list keeps the same height: it shows the repository name, the branch of HEAD (the short hash when detached) and the position of the selected commit on the commits loaded, like `42/1,204`, with a `…` while git reads, and `loading… N commits` is gone. A git failure still shows in red in its place.
