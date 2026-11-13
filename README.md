@@ -21,6 +21,8 @@ The last row is a permanent status line, aligned to the right, with three pieces
 
 The repository name is the folder of the main repository, also from a subfolder or a linked worktree, and the folder name without `.git` for a bare repository. The repository and the branch are read once at launch and do not follow a checkout made elsewhere. This needs git 2.31 or later.
 
+The search looks at the subject, the author, the hash and the ref names of each commit.
+
 | Key      | Action                        |
 | -------- | ----------------------------- |
 | `j`      | Move the selection down       |
@@ -31,6 +33,10 @@ The repository name is the folder of the main repository, also from a subfolder 
 | `G`      | Select the last loaded commit |
 | `Ctrl+d` | Move down half a page         |
 | `Ctrl+u` | Move up half a page           |
+| `/`      | Search for a commit           |
+| `n`      | Select the next match         |
+| `N`      | Select the previous match     |
+| `Esc`    | Clear the search              |
 | `q`      | Quit                          |
 | `Ctrl+C` | Quit                          |
 

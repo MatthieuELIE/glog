@@ -109,7 +109,7 @@ fn first_event(reader: &Reader) -> Loaded {
 #[command(
     version,
     about = "A read-only, coloured git log graph for the terminal",
-    after_help = "Keys:\n  j       Move the selection down\n  k       Move the selection up\n  h       Scroll the graph left\n  l       Scroll the graph right\n  g       Select the first commit\n  G       Select the last loaded commit\n  Ctrl+d  Move the selection down half a page\n  Ctrl+u  Move the selection up half a page\n  q       Quit\n  Ctrl+C  Quit"
+    after_help = "Keys:\n  j       Move the selection down\n  k       Move the selection up\n  h       Scroll the graph left\n  l       Scroll the graph right\n  g       Select the first commit\n  G       Select the last loaded commit\n  Ctrl+d  Move the selection down half a page\n  Ctrl+u  Move the selection up half a page\n  /       Search for a commit\n  n       Select the next match\n  N       Select the previous match\n  Esc     Clear the search\n  q       Quit\n  Ctrl+C  Quit"
 )]
 struct Cli {}
 
