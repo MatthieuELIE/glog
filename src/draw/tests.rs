@@ -1548,6 +1548,13 @@ fn a_lowercase_query_ignores_the_case() {
 }
 
 #[test]
+fn a_lowercase_query_finds_a_capitalised_non_ascii_field() {
+    let log = [commit("1111111", "", "Ann", "start"), commit("2222222", "", "Bob", "Été")].join("\n");
+
+    assert_eq!(highlighted_rows(&searched(&log, 2, "été")), vec![1]);
+}
+
+#[test]
 fn a_query_with_a_capital_respects_the_case() {
     let log = [
         commit("1111111", "", "Ann", "start"),

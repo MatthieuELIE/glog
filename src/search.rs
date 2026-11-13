@@ -15,6 +15,13 @@ fn ignores_case(query: &str) -> bool {
 
 fn contains(field: &str, query: &str) -> bool {
     if ignores_case(query) {
+        if field.is_ascii() && query.is_ascii() {
+            return field
+                .as_bytes()
+                .windows(query.len())
+                .any(|window| window.eq_ignore_ascii_case(query.as_bytes()));
+        }
+
         return field.to_lowercase().contains(query);
     }
 
