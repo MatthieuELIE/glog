@@ -23,22 +23,22 @@ The repository name is the folder of the main repository, also from a subfolder 
 
 The search looks at the subject, the author, the hash and the ref names of each commit.
 
-| Key      | Action                        |
-| -------- | ----------------------------- |
-| `j`      | Move the selection down       |
-| `k`      | Move the selection up         |
-| `h`      | Scroll the graph left         |
-| `l`      | Scroll the graph right        |
-| `g`      | Select the first commit       |
-| `G`      | Select the last loaded commit |
-| `Ctrl+d` | Move down half a page         |
-| `Ctrl+u` | Move up half a page           |
-| `/`      | Search for a commit           |
-| `n`      | Select the next match         |
-| `N`      | Select the previous match     |
-| `Esc`    | Clear the search              |
-| `q`      | Quit                          |
-| `Ctrl+C` | Quit                          |
+| Key      | Action                               |
+| -------- | ------------------------------------ |
+| `j`      | Move the selection down              |
+| `k`      | Move the selection up                |
+| `h`      | Scroll the graph left                |
+| `l`      | Scroll the graph right               |
+| `g`      | Select the first commit              |
+| `G`      | Select the last loaded commit        |
+| `Ctrl+d` | Move down half a page                |
+| `Ctrl+u` | Move up half a page                  |
+| `/`      | Search for a commit                  |
+| `n`      | Select the next match                |
+| `N`      | Select the previous match            |
+| `Esc`    | Close the input, or clear the search |
+| `q`      | Quit                                 |
+| `Ctrl+C` | Quit                                 |
 
 `glog --help` prints the same keys, and `glog --version` the installed version.
 
