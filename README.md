@@ -47,6 +47,9 @@ The search looks at the subject, the author, the hash and the ref names of each 
 - `●` is a commit and `○` is HEAD.
 - Each lane, a line of history that branches off and merges back, has its own colour.
 - The graph takes at most a quarter of the terminal width. When lanes are hidden, the two cells on that edge of the graph fade to dark grey, on the left or the right: `h` and `l` scroll the graph one lane at a time.
+
+  ![The glog view on a repository with more open branches than the graph can show: coloured lanes fill the graph, the lane on its left edge and the nodes on its right edge are dark grey, and the selected commit is on the last row](docs/images/faded-edge.png)
+
 - The graph follows the selected commit: when the selection changes, the graph shifts just enough to show the commit's node, and stays put when the node is already visible. `h` and `l` are for looking around, even past the node, until the next change of selection.
 - Badges are pills, a name on a coloured background, and name the refs on a commit: local branches in their lane's colour, remote branches in grey, and tags in yellow with a `◆`. The branch HEAD is on is the first pill, in bold; a detached HEAD shows a bold `HEAD` pill instead.
 - Colour is kept for the graph and the badges: the hash and the date are the dimmest text, the author is a step lighter and the subject is the lightest. The selected row has a soft background and a bold subject.
