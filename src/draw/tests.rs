@@ -904,6 +904,16 @@ fn dims_no_edge_when_the_graph_fits_in_the_window() {
 }
 
 #[test]
+fn the_dimmed_cells_of_the_selected_row_differ_from_its_background() {
+    let buffer = draw_after(&many_branches_log(6), 24, 7, "l");
+
+    assert_eq!(dimmed_cells(&buffer, 0, 6), [0, 1, 4, 5]);
+    for x in [0, 1, 4, 5] {
+        assert_ne!(buffer[(x, 0)].fg, buffer[(x, 0)].bg);
+    }
+}
+
+#[test]
 fn h_and_l_keep_the_selection_and_j_and_k_bring_the_node_back() {
     let log = many_branches_log(6);
 
