@@ -104,7 +104,7 @@ fn help_flags_print_usage_description_and_keys_on_stdout() {
             "/       Search for a commit",
             "n       Select the next match",
             "N       Select the previous match",
-            "Esc     Clear the search",
+            "Esc     Close the input, or clear the search",
             "q       Quit",
             "Ctrl+C",
         ] {
