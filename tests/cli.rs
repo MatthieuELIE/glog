@@ -112,3 +112,31 @@ fn help_flags_print_usage_description_and_keys_on_stdout() {
         }
     }
 }
+
+fn readme_keys(readme: &str) -> Vec<String> {
+    readme
+        .lines()
+        .filter_map(|line| line.strip_prefix("| `"))
+        .filter_map(|rest| rest.split('`').next())
+        .map(String::from)
+        .collect()
+}
+
+fn help_keys(help: &str) -> Vec<String> {
+    help.lines()
+        .skip_while(|line| *line != "Keys:")
+        .skip(1)
+        .filter_map(|line| line.split_whitespace().next())
+        .map(String::from)
+        .collect()
+}
+
+#[test]
+fn the_readme_key_table_lists_the_keys_of_the_help_in_the_same_order() {
+    let readme = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/README.md")).unwrap();
+    let output = run_outside_a_repository(&["--help"]);
+    let help = String::from_utf8_lossy(&output.stdout);
+
+    assert!(!help_keys(&help).is_empty(), "{help}");
+    assert_eq!(readme_keys(&readme), help_keys(&help));
+}
