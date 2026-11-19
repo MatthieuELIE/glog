@@ -1612,7 +1612,7 @@ fn a_search_without_match_leaves_the_selection_in_place() {
     let buffer = draw_inputs(&five_commits(), 60, 5, &inputs);
 
     assert_eq!(highlighted_rows(&buffer), vec![2]);
-    assert!(last_row(&buffer).ends_with("3/5"));
+    assert_eq!(last_row(&buffer), format!("/nothing like it  no match{}3/5", " ".repeat(31)));
 }
 
 #[test]
@@ -1647,7 +1647,7 @@ fn the_cursor_sits_after_the_last_typed_character() {
 fn the_input_closes_after_enter() {
     let buffer = searched(&five_commits(), 5, "commit c");
 
-    assert!(last_row(&buffer).ends_with("3/5"));
+    assert_eq!(last_row(&buffer), format!("/commit c  1/1{}3/5", " ".repeat(43)));
 }
 
 #[test]
