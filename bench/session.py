@@ -1,10 +1,15 @@
 """Run a program in a pseudo-terminal, send it keys and wait for its frames."""
+import ctypes
 import os
 import pty
 import select
 import subprocess
+import sys
 import termios
 import time
+from pathlib import Path
+
+RUSAGE_INFO_V4 = 4
 
 # ratatui hides the cursor as the last write of a draw, or shows it when the frame places it, as in the search input.
 FRAME_ENDS = (b"\x1b[?25l", b"\x1b[?25h")
@@ -69,11 +74,43 @@ def has_git_child(process):
     return found.returncode == 0
 
 
-def memory(process):
-    """Resident memory of the process, in megabytes."""
-    rss = subprocess.run(["ps", "-o", "rss=", "-p", str(process.pid)], capture_output=True, text=True, check=True)
+class RusageInfoV4(ctypes.Structure):
+    # struct rusage_info_v4 of macOS's <sys/resource.h>, which /usr/bin/time -l reads for its peak memory footprint.
+    _fields_ = [
+        ("uuid", ctypes.c_uint8 * 16),
+        ("counters", ctypes.c_uint64 * 28),
+        ("lifetime_max_phys_footprint", ctypes.c_uint64),
+        ("later_counters", ctypes.c_uint64 * 6),
+    ]
 
-    return int(rss.stdout) / 1024
+
+def peak_footprint(pid):
+    """Peak memory footprint of a running macOS process, in bytes."""
+    libproc = ctypes.CDLL("libproc.dylib", use_errno=True)
+    info = RusageInfoV4()
+    if libproc.proc_pid_rusage(pid, RUSAGE_INFO_V4, ctypes.byref(info)) != 0:
+        raise OSError(ctypes.get_errno(), f"proc_pid_rusage failed for process {pid}")
+
+    return info.lifetime_max_phys_footprint
+
+
+def peak_resident_kb(status):
+    """The `VmHWM` field of a Linux /proc/<pid>/status text, in kilobytes."""
+    for line in status.splitlines():
+        if line.startswith("VmHWM:"):
+            return int(line.split()[1])
+
+    raise ValueError("no VmHWM line in the process status")
+
+
+def memory(process):
+    """Peak memory of the process, in megabytes: its peak footprint on macOS, its peak resident size on Linux."""
+    if sys.platform == "darwin":
+        return peak_footprint(process.pid) / 1024 / 1024
+
+    status = Path(f"/proc/{process.pid}/status").read_text()
+
+    return peak_resident_kb(status) / 1024
 
 
 def stop(process, master):

@@ -133,11 +133,11 @@ def measure(repo, end):
     loaded_ms = (time.monotonic() - start) * 1000
     session.drain(master, 0.3)
     latencies_ms, timed_out = press_keys(master, end)
-    memory_mb = session.memory(process)
     searches = []
     if not end and not timed_out:
         searches = search.play(master)
 
+    memory_mb = session.memory(process)
     session.stop(process, master)
 
     return Measure(first_frame_ms, loaded_ms, latencies_ms, timed_out, memory_mb, searches)
