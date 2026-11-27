@@ -2,6 +2,7 @@ mod common;
 
 use common::TempDir;
 use glog::{
+    history::History,
     parse::{Commit, RefKind},
     read::{Identity, Loaded, identity, start},
 };
@@ -114,6 +115,12 @@ fn commit_repository_of(count: usize) -> TempDir {
             )
         })
         .collect();
+    fast_import(&dir, &stream);
+
+    dir
+}
+
+fn fast_import(dir: &TempDir, stream: &str) {
     let status = std::process::Command::new("git")
         .current_dir(dir.path())
         .args(["fast-import", "--quiet"])
@@ -127,8 +134,38 @@ fn commit_repository_of(count: usize) -> TempDir {
         })
         .unwrap();
     assert!(status.success());
+}
 
-    dir
+fn rev_parse(dir: &Path, rev: &str) -> String {
+    let output = std::process::Command::new("git")
+        .current_dir(dir)
+        .args(["rev-parse", rev])
+        .env_remove("GIT_DIR")
+        .output()
+        .unwrap();
+
+    String::from_utf8(output.stdout).unwrap().trim_end().to_string()
+}
+
+#[test]
+fn history_gives_the_full_hash_of_each_commit_even_when_two_share_their_short_hash() {
+    let dir = TempDir::new();
+    dir.git(&["init", "-q", "-b", "main"]);
+    fast_import(
+        &dir,
+        "commit refs/heads/a\ncommitter Ann <ann@example.com> 1000000 +0000\ndata 6\nc7221\n\n\
+         commit refs/heads/b\ncommitter Ann <ann@example.com> 1000000 +0000\ndata 7\nc22996\n\n",
+    );
+    let mut history = History::default();
+    read_commits(dir.path()).into_iter().for_each(|commit| history.push(commit));
+
+    let mut found: Vec<String> = (0..history.len()).map(|row| history.full_hash(row)).collect();
+    found.sort();
+    let mut expected = vec![rev_parse(dir.path(), "a"), rev_parse(dir.path(), "b")];
+    expected.sort();
+
+    assert_eq!(history.short_hash(0), history.short_hash(1));
+    assert_eq!(found, expected);
 }
 
 fn event_sizes(dir: &Path) -> Vec<String> {

@@ -12,6 +12,14 @@ fn offset(position: usize) -> u32 {
     u32::try_from(position).unwrap_or(u32::MAX)
 }
 
+fn raw_hash(hash: &str) -> [u8; 20] {
+    std::array::from_fn(|index| {
+        hash.get(index * 2..index * 2 + 2)
+            .and_then(|pair| u8::from_str_radix(pair, 16).ok())
+            .unwrap_or(0)
+    })
+}
+
 #[derive(Default)]
 struct Texts {
     text: String,
@@ -54,6 +62,7 @@ impl Authors {
 pub struct History {
     placer: Placer,
     hashes: Texts,
+    full_hashes: Vec<[u8; 20]>,
     subjects: Texts,
     times: Vec<i64>,
     authors: Authors,
@@ -77,6 +86,7 @@ impl History {
         let row = self.placer.place(&commit);
 
         self.hashes.push(&commit.hash.chars().take(SHORT_HASH_WIDTH).collect::<String>());
+        self.full_hashes.push(raw_hash(&commit.hash));
         self.subjects.push(&commit.subject);
         self.times.push(commit.time);
         let author = self.authors.intern(commit.author);
@@ -108,6 +118,10 @@ impl History {
 
     pub fn short_hash(&self, row: usize) -> &str {
         self.hashes.get(row)
+    }
+
+    pub fn full_hash(&self, row: usize) -> String {
+        self.full_hashes[row].iter().map(|byte| format!("{byte:02x}")).collect()
     }
 
     pub fn time(&self, row: usize) -> i64 {

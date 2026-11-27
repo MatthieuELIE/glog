@@ -13,7 +13,7 @@ exclude_re = [
     'src/lanes\.rs:216:53: replace < with <= in cell_at',
     'src/lanes\.rs:216:72: replace < with <= in cell_at',
     # Replaying from row 0 over the resume point's state rewrites every column the state holds with the value it already has: the result is the same, only slower: the key latency of bench/run.py is the guard.
-    'src/history\.rs:145:21: replace \* with / in History::lanes_before',
+    'src/history\.rs:159:21: replace \* with / in History::lanes_before',
     # A trailing free column left in place widens no row: its width was already counted when the lane ended, and advance trims on its own.
     'src/lanes\.rs:88:9: replace Placer::trim with \(\)',
 ]
