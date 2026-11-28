@@ -1445,13 +1445,8 @@ fn press_key(code: KeyCode) -> Input {
 }
 
 #[test]
-fn enter_escape_and_backspace_leave_the_view_as_it_was() {
-    let inputs = [
-        press_key(KeyCode::Char('j')),
-        press_key(KeyCode::Enter),
-        press_key(KeyCode::Esc),
-        press_key(KeyCode::Backspace),
-    ];
+fn escape_and_backspace_leave_the_view_as_it_was() {
+    let inputs = [press_key(KeyCode::Char('j')), press_key(KeyCode::Esc), press_key(KeyCode::Backspace)];
 
     let buffer = draw_inputs(&five_commits(), 40, 5, &inputs);
 
@@ -2316,4 +2311,172 @@ fn the_notice_takes_the_place_of_the_search_until_the_next_key() {
         format!("copied ddddddd{}2/5", " ".repeat(23))
     );
     assert!(status_after(&log, 40, &moved, &Identity::default()).starts_with("/Bob  2  "));
+}
+
+fn header_log() -> String {
+    [
+        line(&full_hash('1'), "", "", "1740800", "Bartholomew", "first subject"),
+        line(&full_hash('2'), "", "", "790400", "Ann", "second subject"),
+    ]
+    .join("\n")
+}
+
+fn opened(keys: &str) -> Vec<Input> {
+    [typed(keys), vec![press_key(KeyCode::Enter)]].concat()
+}
+
+fn text_from(buffer: &Buffer, y: u16, left: u16) -> String {
+    let text: String = (left..buffer.area.width).map(|x| buffer[(x, y)].symbol().to_string()).collect();
+
+    text.trim_end().to_string()
+}
+
+#[test]
+fn enter_opens_the_detail_panel_with_the_full_hash_the_author_the_relative_date_and_the_subject_of_the_selected_commit() {
+    let buffer = draw_inputs(&header_log(), 100, 5, &opened("j"));
+
+    assert_eq!(text_from(&buffer, 0, 40), full_hash('2'));
+    assert_eq!(text_from(&buffer, 1, 40), "Ann  14d");
+    assert_eq!(text_from(&buffer, 2, 40), "");
+    assert_eq!(text_from(&buffer, 3, 40), "second subject");
+    assert_eq!(text_from(&buffer, 4, 40), "");
+}
+
+const MANTLE: Color = Color::Rgb(0x18, 0x18, 0x25);
+
+fn mantle_columns(buffer: &Buffer, y: u16) -> Vec<u16> {
+    (0..buffer.area.width).filter(|&x| buffer[(x, y)].bg == MANTLE).collect()
+}
+
+#[test]
+fn the_panel_covers_the_right_sixty_percent_of_the_list_over_a_list_drawn_as_without_panel() {
+    for (width, left) in [(100, 40), (200, 80)] {
+        let without = draw_inputs(&five_commits(), width, 5, &typed("j"));
+        let with = draw_inputs(&five_commits(), width, 5, &opened("j"));
+
+        for y in 0..5 {
+            assert_eq!(mantle_columns(&with, y), (left..width).collect::<Vec<u16>>(), "{width} {y}");
+            for x in 0..left {
+                assert_eq!(with[(x, y)], without[(x, y)], "{width} {x} {y}");
+            }
+        }
+    }
+}
+
+#[test]
+fn under_a_hundred_columns_the_panel_covers_the_whole_list() {
+    let buffer = draw_inputs(&header_log(), 99, 5, &opened("j"));
+
+    for y in 0..5 {
+        assert_eq!(mantle_columns(&buffer, y), (0..99).collect::<Vec<u16>>(), "{y}");
+    }
+    assert_eq!(text_from(&buffer, 0, 0), full_hash('2'));
+}
+
+#[test]
+fn the_status_line_stays_visible_and_unchanged_under_the_panel() {
+    let identity = glog_main();
+    let inputs = |keys: Vec<Input>| [bob_search(), keys].concat();
+
+    for width in [60, 100] {
+        let without = draw_inputs_identified(&bob_on_rows_one_and_three(), width, 5, &inputs(typed("j")), &Loading::Reading, &identity);
+        let with = draw_inputs_identified(&bob_on_rows_one_and_three(), width, 5, &inputs(opened("j")), &Loading::Reading, &identity);
+
+        for x in 0..width {
+            assert_eq!(with[(x, 5)], without[(x, 5)], "{width} {x}");
+        }
+    }
+}
+
+#[test]
+fn the_panel_has_the_mantle_background_on_every_cell_and_no_border() {
+    let buffer = draw_inputs(&header_log(), 100, 5, &opened(""));
+
+    for y in 0..5 {
+        assert_eq!(mantle_columns(&buffer, y), (40..100).collect::<Vec<u16>>(), "{y}");
+    }
+    assert_eq!(text_from(&buffer, 0, 40), full_hash('1'));
+    assert_eq!(text_from(&buffer, 1, 40), "Bartholomew  3d");
+}
+
+#[test]
+fn the_panel_opens_while_the_history_is_still_loading() {
+    let buffer = draw_inputs_identified(&header_log(), 100, 5, &opened("j"), &Loading::Reading, &Identity::default());
+
+    assert_eq!(text_from(&buffer, 0, 40), full_hash('2'));
+    assert!(last_row(&buffer).ends_with("2/2…"));
+}
+
+#[test]
+fn enter_during_a_search_input_runs_the_search_and_opens_no_panel() {
+    let buffer = draw_inputs(&five_commits(), 100, 5, &searching("commit c"));
+
+    assert_eq!(highlighted_rows(&buffer), vec![2]);
+    for y in 0..6 {
+        assert_eq!(mantle_columns(&buffer, y), Vec::<u16>::new(), "{y}");
+    }
+}
+
+#[test]
+fn enter_closes_the_open_panel() {
+    let without = draw_inputs(&five_commits(), 100, 5, &typed("j"));
+    let closed = draw_inputs(&five_commits(), 100, 5, &[opened("j"), vec![press_key(KeyCode::Enter)]].concat());
+
+    assert_eq!(closed, without);
+}
+
+#[test]
+fn enter_during_a_search_input_with_the_panel_open_runs_the_search_and_keeps_the_panel_open() {
+    let buffer = draw_inputs(&five_commits(), 100, 5, &[opened(""), searching("commit c")].concat());
+
+    assert_eq!(highlighted_rows(&buffer), vec![2]);
+    for y in 0..5 {
+        assert_eq!(mantle_columns(&buffer, y), (40..100).collect::<Vec<u16>>(), "{y}");
+    }
+}
+
+#[test]
+fn escape_closes_the_open_panel() {
+    let without = draw_inputs(&five_commits(), 100, 5, &typed("j"));
+    let closed = draw_inputs(&five_commits(), 100, 5, &[opened("j"), vec![press_key(KeyCode::Esc)]].concat());
+
+    assert_eq!(closed, without);
+}
+
+#[test]
+fn escape_with_the_panel_open_keeps_the_active_search_and_the_next_escape_clears_it() {
+    let log = bob_on_rows_one_and_three();
+    let closed = [bob_search(), opened(""), vec![press_key(KeyCode::Esc)]].concat();
+    let cleared = [closed.clone(), vec![press_key(KeyCode::Esc)]].concat();
+
+    assert_eq!(draw_inputs(&log, 100, 5, &closed), draw_inputs(&log, 100, 5, &bob_search()));
+    assert_eq!(
+        draw_inputs(&log, 100, 5, &cleared),
+        draw_inputs(&log, 100, 5, &[bob_search(), vec![press_key(KeyCode::Esc)]].concat())
+    );
+}
+
+#[test]
+fn escape_during_a_search_input_with_the_panel_open_closes_the_input_and_keeps_the_panel_and_the_search() {
+    let log = bob_on_rows_one_and_three();
+    let open = [bob_search(), opened("")].concat();
+    let abandoned = [open.clone(), typed("/Ann"), vec![press_key(KeyCode::Esc)]].concat();
+
+    assert_eq!(draw_inputs(&log, 100, 5, &abandoned), draw_inputs(&log, 100, 5, &open));
+}
+
+#[test]
+fn y_with_the_panel_open_copies_the_full_hash_of_the_selected_commit_and_shows_the_notice() {
+    let inputs = [opened("j"), typed("y")].concat();
+
+    assert_eq!(effects_after(&twins_log(), &inputs), vec![Effect::Copy(full_hash('2'))]);
+    assert!(last_row(&draw_inputs(&twins_log(), 100, 5, &inputs)).starts_with("copied abcdef0 "));
+}
+
+#[test]
+fn y_with_the_panel_open_is_a_character_of_the_query_during_the_input() {
+    let inputs = [opened(""), typed("/y")].concat();
+
+    assert_eq!(effects_after(&twins_log(), &inputs), Vec::new());
+    assert!(last_row(&draw_inputs(&twins_log(), 100, 5, &inputs)).starts_with("/y "));
 }
