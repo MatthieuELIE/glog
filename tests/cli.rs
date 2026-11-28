@@ -92,7 +92,7 @@ fn help_flags_print_usage_description_and_keys_on_stdout() {
         assert!(output.status.success(), "{flag}");
         for expected in [
             "Usage: glog",
-            "A read-only, coloured git log graph for the terminal",
+            "A coloured git log graph for the terminal that never changes the repository",
             "j  ",
             "k  ",
             "h  ",

@@ -8,9 +8,10 @@ use std::{
 
 use clap::Parser;
 use glog::{
+    clipboard::osc52,
     draw::{max_offset, render},
     history::History,
-    nav::{Loading, Session, Step, advance, complete_search, fit, list_height},
+    nav::{Effect, Loading, Session, Step, advance, complete_search, fit, list_height},
     read::{Identity, Loaded, Reader, identity, start},
 };
 use ratatui::{
@@ -54,6 +55,16 @@ fn key_pressed(loading: &Loading) -> io::Result<Option<event::KeyEvent>> {
     }
 }
 
+fn run_effects(terminal: &mut DefaultTerminal, effects: Vec<Effect>) -> io::Result<()> {
+    for effect in effects {
+        match effect {
+            Effect::Copy(text) => terminal.backend_mut().write_all(osc52(&text).as_bytes())?,
+        }
+    }
+
+    terminal.backend_mut().flush()
+}
+
 fn event_loop(terminal: &mut DefaultTerminal, reader: &Reader, history: &mut History, identity: &Identity, now: i64) -> io::Result<()> {
     let mut session = Session::default();
     let mut loading = Loading::Reading;
@@ -78,7 +89,10 @@ fn event_loop(terminal: &mut DefaultTerminal, reader: &Reader, history: &mut His
                 usize::from(size.width),
                 usize::from(size.height),
             ) {
-                Step::Continue(next) => session = next,
+                Step::Continue(next, effects) => {
+                    session = next;
+                    run_effects(terminal, effects)?;
+                }
                 Step::Quit => return Ok(()),
             }
         }
@@ -108,7 +122,7 @@ fn first_event(reader: &Reader) -> Loaded {
 #[derive(Parser)]
 #[command(
     version,
-    about = "A read-only, coloured git log graph for the terminal",
+    about = "A coloured git log graph for the terminal that never changes the repository",
     after_help = "Keys:\n  j       Move the selection down\n  k       Move the selection up\n  h       Scroll the graph left\n  l       Scroll the graph right\n  g       Select the first commit\n  G       Select the last loaded commit\n  Ctrl+d  Move the selection down half a page\n  Ctrl+u  Move the selection up half a page\n  /       Search for a commit\n  n       Select the next match\n  N       Select the previous match\n  Esc     Close the input, or clear the search\n  q       Quit\n  Ctrl+C  Quit"
 )]
 struct Cli {}

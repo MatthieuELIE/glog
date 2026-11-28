@@ -1,6 +1,6 @@
 # glog
 
-A read-only, coloured git log graph for the terminal: every branch, remote and tag of a repository in one scrollable view.
+A coloured git log graph for the terminal that never changes the repository: every branch, remote and tag in one scrollable view.
 
 ![The glog view on a repository with a feature branch, merged pull requests and remote branches: coloured branch pills, grey remote pills and yellow tag pills, a 15-cell author column, and the selected commit in the middle of the history on a soft background with a bold subject](docs/images/graph.png)
 
@@ -15,7 +15,7 @@ It is developed on macOS and tested on Linux; it has not been tried on Windows.
 
 ## Usage
 
-Run `glog` in a git repository. It reads the current folder and changes nothing. It opens while the history is still loading.
+Run `glog` in a git repository. It reads the current folder and never changes the repository. It opens while the history is still loading.
 
 The last row is a permanent status line, aligned to the right, with three pieces of information: the name of the repository, the branch of HEAD in a bold pill (the short hash when HEAD is detached), and the position of the selected commit among the commits loaded, like `glog  main  42/1,204`. The position ends with `…` while git is still reading, and the total keeps growing until it is done. If git fails, the first line of its message replaces the position, in red. On a narrow terminal the repository goes first, then the branch, and the position always stays.
 

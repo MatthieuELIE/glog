@@ -18,11 +18,19 @@ pub struct Session {
     pub view: View,
     pub input: Option<String>,
     pub search: Option<Search>,
+    pub notice: Option<String>,
+}
+
+/// What a key asks the event loop to do outside the session.
+#[derive(Debug, PartialEq)]
+pub enum Effect {
+    /// Put this text in the terminal's clipboard.
+    Copy(String),
 }
 
 #[derive(Debug, PartialEq)]
 pub enum Step {
-    Continue(Session),
+    Continue(Session, Vec<Effect>),
     Quit,
 }
 
@@ -149,6 +157,7 @@ fn submit(session: Session, input: String, history: &History, terminal_width: us
         view: settle(session.view, after, history, terminal_width),
         input: None,
         search: Some(found),
+        notice: None,
     }
 }
 
@@ -189,17 +198,20 @@ fn edit(input: String, key: KeyEvent) -> Option<String> {
 
 fn type_in(session: Session, input: String, key: KeyEvent, history: &History, terminal_width: usize) -> Step {
     if key.code == KeyCode::Enter {
-        return Step::Continue(submit(session, input, history, terminal_width));
+        return Step::Continue(submit(session, input, history, terminal_width), Vec::new());
     }
 
     if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
         return Step::Quit;
     }
 
-    Step::Continue(Session {
-        input: edit(input, key),
-        ..session
-    })
+    Step::Continue(
+        Session {
+            input: edit(input, key),
+            ..session
+        },
+        Vec::new(),
+    )
 }
 
 pub fn complete_search(session: Session, history: &History) -> Session {
@@ -210,16 +222,18 @@ pub fn complete_search(session: Session, history: &History) -> Session {
 }
 
 pub fn advance(mut session: Session, key: KeyEvent, history: &History, terminal_width: usize, terminal_height: usize) -> Step {
+    session.notice = None;
+
     if let Some(input) = session.input.take() {
         return type_in(session, input, key, history, terminal_width);
     }
 
     if key.code == KeyCode::Esc {
-        return Step::Continue(Session { search: None, ..session });
+        return Step::Continue(Session { search: None, ..session }, Vec::new());
     }
 
     let KeyCode::Char(character) = key.code else {
-        return Step::Continue(session);
+        return Step::Continue(session, Vec::new());
     };
 
     if quits(character, key.modifiers) {
@@ -227,10 +241,26 @@ pub fn advance(mut session: Session, key: KeyEvent, history: &History, terminal_
     }
 
     if character == '/' && !key.modifiers.contains(KeyModifiers::CONTROL) {
-        return Step::Continue(Session {
-            input: Some(String::new()),
-            ..session
-        });
+        return Step::Continue(
+            Session {
+                input: Some(String::new()),
+                ..session
+            },
+            Vec::new(),
+        );
+    }
+
+    if character == 'y' && !key.modifiers.contains(KeyModifiers::CONTROL) {
+        let selected = session.view.selected;
+        let notice = format!("copied {}", history.short_hash(selected));
+
+        return Step::Continue(
+            Session {
+                notice: Some(notice),
+                ..session
+            },
+            vec![Effect::Copy(history.full_hash(selected))],
+        );
     }
 
     let after = match_jump(&session, character, key.modifiers).map_or_else(
@@ -238,10 +268,13 @@ pub fn advance(mut session: Session, key: KeyEvent, history: &History, terminal_
         |selected| View { selected, ..session.view },
     );
 
-    Step::Continue(Session {
-        view: settle(session.view, after, history, terminal_width),
-        ..session
-    })
+    Step::Continue(
+        Session {
+            view: settle(session.view, after, history, terminal_width),
+            ..session
+        },
+        Vec::new(),
+    )
 }
 
 #[cfg(test)]

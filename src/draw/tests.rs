@@ -9,7 +9,7 @@ use ratatui::{
 use crate::{
     draw::{max_offset, render, reveal_offset},
     history::History,
-    nav::{Loading, Session, Step, View, advance, complete_search, fit, press},
+    nav::{Effect, Loading, Session, Step, View, advance, complete_search, fit, press},
     parse::parse,
     read::Identity,
 };
@@ -65,20 +65,25 @@ fn draw_inputs(log: &str, width: u16, height: u16, inputs: &[Input]) -> Buffer {
 }
 
 fn draw_inputs_identified(log: &str, width: u16, height: u16, inputs: &[Input], loading: &Loading, identity: &Identity) -> Buffer {
-    replay(log, width, height, inputs, loading, identity).backend().buffer().clone()
+    replay(log, width, height, inputs, loading, identity).0.backend().buffer().clone()
 }
 
 fn cursor_after(log: &str, width: u16, height: u16, inputs: &[Input]) -> Option<(u16, u16)> {
-    let mut terminal = replay(log, width, height, inputs, &Loading::Done, &Identity::default());
+    let (mut terminal, _) = replay(log, width, height, inputs, &Loading::Done, &Identity::default());
 
     terminal.backend_mut().get_cursor_position().ok().map(|position| (position.x, position.y))
 }
 
-fn replay(log: &str, width: u16, height: u16, inputs: &[Input], loading: &Loading, identity: &Identity) -> Terminal<TestBackend> {
+fn effects_after(log: &str, inputs: &[Input]) -> Vec<Effect> {
+    replay(log, 60, 5, inputs, &Loading::Done, &Identity::default()).1
+}
+
+fn replay(log: &str, width: u16, height: u16, inputs: &[Input], loading: &Loading, identity: &Identity) -> (Terminal<TestBackend>, Vec<Effect>) {
     let mut history = History::default();
     parse(log).into_iter().for_each(|commit| history.push(commit));
     let mut terminal = Terminal::new(TestBackend::new(width, height + 1)).unwrap();
     let mut session = Session::default();
+    let mut effects = Vec::new();
     let mut frame_after = |session: Session, history: &History| {
         let view = fit(
             session.view,
@@ -95,8 +100,9 @@ fn replay(log: &str, width: u16, height: u16, inputs: &[Input], loading: &Loadin
     for input in inputs {
         match input {
             Input::Key(key) => {
-                if let Step::Continue(next) = advance(session.clone(), *key, &history, usize::from(width), usize::from(height) + 1) {
+                if let Step::Continue(next, requested) = advance(session.clone(), *key, &history, usize::from(width), usize::from(height) + 1) {
                     session = next;
+                    effects.extend(requested);
                 }
             }
             Input::Commits(batch) => {
@@ -107,7 +113,7 @@ fn replay(log: &str, width: u16, height: u16, inputs: &[Input], loading: &Loadin
         session = frame_after(session, &history);
     }
 
-    terminal
+    (terminal, effects)
 }
 
 fn row_text(buffer: &Buffer, y: u16) -> String {
@@ -2228,4 +2234,86 @@ fn rows_already_scanned_keep_their_matches_when_a_batch_arrives() {
 
     assert_eq!(highlighted_rows(&buffer), vec![1]);
     assert!(last_row(&buffer).starts_with("/Bob  1/2"));
+}
+
+fn full_hash(last_character: char) -> String {
+    format!("abcdef0{}", last_character.to_string().repeat(33))
+}
+
+fn twins_log() -> String {
+    [
+        commit(&full_hash('1'), "", "Ann", "first twin"),
+        commit(&full_hash('2'), "", "Ann", "second twin"),
+    ]
+    .join("\n")
+}
+
+#[test]
+fn y_copies_the_full_hash_of_the_selected_commit_even_when_its_short_hash_is_shared() {
+    assert_eq!(effects_after(&twins_log(), &typed("y")), vec![Effect::Copy(full_hash('1'))]);
+    assert_eq!(effects_after(&twins_log(), &typed("jy")), vec![Effect::Copy(full_hash('2'))]);
+}
+
+#[test]
+fn y_shows_the_notice_copied_with_the_short_hash_in_grey_on_the_left_of_the_status_line() {
+    let buffer = draw_inputs(&twins_log(), 40, 5, &typed("jy"));
+
+    assert_eq!(last_row(&buffer), format!("copied abcdef0{}2/2", " ".repeat(23)));
+    for x in 0..14 {
+        assert_eq!(buffer[(x, 5)].fg, OVERLAY_COLOR, "{x}");
+    }
+}
+
+#[test]
+fn the_next_key_clears_the_notice_then_does_its_effect() {
+    let log = five_commits();
+    let then_escape = [typed("y"), vec![press_key(KeyCode::Esc)]].concat();
+
+    assert_eq!(draw_inputs(&log, 40, 5, &typed("yj")), draw_after(&log, 40, 5, "j"));
+    assert_eq!(draw_inputs(&log, 40, 5, &then_escape), draw(&log, 40, 5));
+    assert_eq!(effects_after(&log, &typed("yj")).len(), 1);
+}
+
+#[test]
+fn y_is_a_character_of_the_query_during_the_input() {
+    let log = twins_log();
+
+    assert_eq!(effects_after(&log, &typed("/y")), Vec::new());
+    assert!(last_row(&draw_inputs(&log, 40, 5, &typed("/y"))).starts_with("/y "));
+    assert!(last_row(&draw_inputs(&log, 40, 5, &searching("y"))).starts_with("/y  no match"));
+}
+
+#[test]
+fn ctrl_y_copies_nothing_and_shows_no_notice() {
+    let ctrl_y = [Input::Key(KeyEvent::new(KeyCode::Char('y'), KeyModifiers::CONTROL))];
+
+    assert_eq!(effects_after(&twins_log(), &ctrl_y), Vec::new());
+    assert_eq!(draw_inputs(&twins_log(), 40, 5, &ctrl_y), draw(&twins_log(), 40, 5));
+}
+
+#[test]
+fn a_narrow_terminal_drops_the_repository_then_the_branch_before_the_notice_shrinks() {
+    let log = twins_log();
+    let identity = glog_main();
+    let status = |width| status_after(&log, width, &typed("y"), &identity);
+
+    assert_eq!(status(33), "copied abcdef0  glog   main   1/2");
+    assert_eq!(status(32), format!("copied abcdef0{} main   1/2", " ".repeat(7)));
+    assert_eq!(status(27), "copied abcdef0   main   1/2");
+    assert_eq!(status(26), format!("copied abcdef0{}1/2", " ".repeat(9)));
+    assert_eq!(status(19), "copied abcdef0  1/2");
+    assert_eq!(status(18), "copied abcde…  1/2");
+}
+
+#[test]
+fn the_notice_takes_the_place_of_the_search_until_the_next_key() {
+    let log = bob_on_rows_one_and_three();
+    let copied = [bob_search(), typed("y")].concat();
+    let moved = [copied.clone(), typed("j")].concat();
+
+    assert_eq!(
+        status_after(&log, 40, &copied, &Identity::default()),
+        format!("copied ddddddd{}2/5", " ".repeat(23))
+    );
+    assert!(status_after(&log, 40, &moved, &Identity::default()).starts_with("/Bob  2  "));
 }

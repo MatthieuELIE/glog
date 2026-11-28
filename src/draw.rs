@@ -321,7 +321,8 @@ fn status_line(identity: &Identity, rank: usize, total: usize, loading: &Loading
 }
 
 struct Left {
-    query: String,
+    text: String,
+    color: Color,
     counter: Option<(String, Color)>,
 }
 
@@ -338,9 +339,18 @@ fn counter(search: &Search, selected: usize) -> (String, Color) {
 }
 
 fn left_of(session: &Session) -> Option<Left> {
+    if let Some(notice) = &session.notice {
+        return Some(Left {
+            text: notice.clone(),
+            color: OVERLAY,
+            counter: None,
+        });
+    }
+
     if let Some(input) = &session.input {
         return Some(Left {
-            query: format!("/{input}"),
+            text: format!("/{input}"),
+            color: TEXT,
             counter: None,
         });
     }
@@ -348,7 +358,8 @@ fn left_of(session: &Session) -> Option<Left> {
     let search = session.search.as_ref()?;
 
     Some(Left {
-        query: format!("/{}", search.query),
+        text: format!("/{}", search.query),
+        color: TEXT,
         counter: Some(counter(search, session.view.selected)),
     })
 }
@@ -358,8 +369,8 @@ fn counter_width(left: &Left) -> usize {
 }
 
 fn left_line(left: &Left, room: usize) -> Line<'static> {
-    let query = truncate(&left.query, room.saturating_sub(counter_width(left)));
-    let mut spans = vec![Span::styled(query, Style::new().fg(TEXT))];
+    let text = truncate(&left.text, room.saturating_sub(counter_width(left)));
+    let mut spans = vec![Span::styled(text, Style::new().fg(left.color))];
     if let Some((counter, color)) = &left.counter {
         spans.push(Span::raw(STATUS_SEPARATOR));
         spans.push(Span::styled(counter.clone(), Style::new().fg(*color)));
@@ -376,7 +387,7 @@ pub fn render(frame: &mut Frame, history: &History, session: &Session, loading: 
     let left = left_of(session);
     let reserved = left
         .as_ref()
-        .map_or(0, |left| left.query.width() + counter_width(left) + STATUS_SEPARATOR.width());
+        .map_or(0, |left| left.text.width() + counter_width(left) + STATUS_SEPARATOR.width());
     let status = status_line(identity, rank, history.len(), loading, usize::from(full.width), reserved);
     if let Some(left) = &left {
         let room = usize::from(full.width).saturating_sub(status.width() + STATUS_SEPARATOR.width());

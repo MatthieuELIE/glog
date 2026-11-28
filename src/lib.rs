@@ -1,3 +1,4 @@
+pub mod clipboard;
 pub mod date;
 pub mod draw;
 pub mod history;
