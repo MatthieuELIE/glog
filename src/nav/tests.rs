@@ -180,10 +180,21 @@ fn advance_quits_on_q_and_ctrl_c() {
 }
 
 #[test]
+fn advance_quits_on_q_and_ctrl_c_with_the_panel_open() {
+    let history = history_of(5);
+    let Step::Continue(opened, _) = advance(Session::default(), key(KeyCode::Enter, NONE), &history, 60, 10) else {
+        panic!("enter quit")
+    };
+
+    assert_eq!(advance(opened.clone(), key(KeyCode::Char('q'), NONE), &history, 60, 10), Step::Quit);
+    assert_eq!(advance(opened, key(KeyCode::Char('c'), CTRL), &history, 60, 10), Step::Quit);
+}
+
+#[test]
 fn advance_ignores_a_key_that_is_not_a_character() {
     let history = history_of(5);
 
-    for code in [KeyCode::Enter, KeyCode::Esc, KeyCode::Backspace] {
+    for code in [KeyCode::Esc, KeyCode::Backspace] {
         assert_eq!(
             advance(session(view(2, 0, 0)), key(code, NONE), &history, 60, 10),
             Step::Continue(session(view(2, 0, 0)), Vec::new())

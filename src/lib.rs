@@ -4,6 +4,7 @@ pub mod draw;
 pub mod history;
 mod lanes;
 pub mod nav;
+pub mod panel;
 pub mod parse;
 pub mod read;
 pub mod search;

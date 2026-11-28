@@ -2,10 +2,10 @@ use std::ops::Range;
 
 use ratatui::{
     Frame,
-    layout::{Constraint, Layout},
+    layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{List, ListItem, Paragraph},
+    widgets::{Clear, List, ListItem, Paragraph},
 };
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
@@ -14,10 +14,11 @@ use crate::{
     history::{History, SHORT_HASH_WIDTH},
     lanes::{Cell, advance, cells},
     nav::{Loading, Session},
+    panel::Panel,
     parse::{Ref, RefKind},
     read::Identity,
     search::{Search, find, find_in_hash},
-    theme::{BASE, LANE_COLORS, OVERLAY, RED, SUBTEXT, SURFACE0, SURFACE1, TEXT, YELLOW},
+    theme::{BASE, LANE_COLORS, MANTLE, OVERLAY, RED, SUBTEXT, SURFACE0, SURFACE1, TEXT, YELLOW},
 };
 
 const DATE_WIDTH: usize = 4;
@@ -29,6 +30,8 @@ const STATUS_SEPARATOR: &str = "  ";
 const NO_MATCH: &str = "no match";
 const EDGE_CELLS: usize = 2;
 const MIN_DIMMED_WINDOW: usize = 5;
+const PANEL_PERCENT: usize = 60;
+const FULL_PANEL_BELOW: u16 = 100;
 
 fn pad(text: &str, width: usize) -> String {
     let padding = width.saturating_sub(text.width());
@@ -379,6 +382,34 @@ fn left_line(left: &Left, room: usize) -> Line<'static> {
     Line::from(spans)
 }
 
+fn panel_width(width: u16) -> u16 {
+    if width < FULL_PANEL_BELOW {
+        return width;
+    }
+
+    u16::try_from(usize::from(width) * PANEL_PERCENT / 100).unwrap_or(width)
+}
+
+fn header_lines(history: &History, row: usize, now: i64) -> Vec<Line<'static>> {
+    vec![
+        Line::styled(history.full_hash(row), Style::new().fg(OVERLAY)),
+        Line::from(vec![
+            Span::styled(history.author(row).to_string(), Style::new().fg(SUBTEXT)),
+            Span::raw(STATUS_SEPARATOR),
+            Span::styled(relative(now, history.time(row)), Style::new().fg(OVERLAY)),
+        ]),
+        Line::default(),
+        Line::styled(history.subject(row).to_string(), subject_style(true)),
+    ]
+}
+
+fn render_panel(frame: &mut Frame, list_area: Rect, panel: Panel, history: &History, now: i64) {
+    let [_, area] = Layout::horizontal([Constraint::Fill(1), Constraint::Length(panel_width(list_area.width))]).areas(list_area);
+
+    frame.render_widget(Clear, area);
+    frame.render_widget(Paragraph::new(header_lines(history, panel.row, now)).style(Style::new().bg(MANTLE)), area);
+}
+
 pub fn render(frame: &mut Frame, history: &History, session: &Session, loading: &Loading, identity: &Identity, now: i64) {
     let view = session.view;
     let full = frame.area();
@@ -434,6 +465,10 @@ pub fn render(frame: &mut Frame, history: &History, session: &Session, loading: 
     }
 
     frame.render_widget(List::new(items), list_area);
+
+    if let Some(panel) = session.panel {
+        render_panel(frame, list_area, panel, history, now);
+    }
 }
 
 #[cfg(test)]

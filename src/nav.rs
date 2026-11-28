@@ -3,6 +3,7 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use crate::{
     draw::reveal_offset,
     history::History,
+    panel::Panel,
     search::{Search, complete, next_after, previous_before, scan},
 };
 
@@ -19,6 +20,7 @@ pub struct Session {
     pub input: Option<String>,
     pub search: Option<Search>,
     pub notice: Option<String>,
+    pub panel: Option<Panel>,
 }
 
 /// What a key asks the event loop to do outside the session.
@@ -158,6 +160,7 @@ fn submit(session: Session, input: String, history: &History, terminal_width: us
         input: None,
         search: Some(found),
         notice: None,
+        ..session
     }
 }
 
@@ -230,6 +233,16 @@ pub fn advance(mut session: Session, key: KeyEvent, history: &History, terminal_
 
     if key.code == KeyCode::Esc {
         return Step::Continue(Session { search: None, ..session }, Vec::new());
+    }
+
+    if key.code == KeyCode::Enter {
+        return Step::Continue(
+            Session {
+                panel: Some(Panel { row: session.view.selected }),
+                ..session
+            },
+            Vec::new(),
+        );
     }
 
     let KeyCode::Char(character) = key.code else {
