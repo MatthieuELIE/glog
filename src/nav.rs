@@ -231,12 +231,12 @@ pub fn advance(mut session: Session, key: KeyEvent, history: &History, terminal_
         return type_in(session, input, key, history, terminal_width);
     }
 
-    if key.code == KeyCode::Esc {
-        return Step::Continue(Session { search: None, ..session }, Vec::new());
+    if matches!(key.code, KeyCode::Esc | KeyCode::Enter) && session.panel.is_some() {
+        return Step::Continue(Session { panel: None, ..session }, Vec::new());
     }
 
-    if key.code == KeyCode::Enter && session.panel.is_some() {
-        return Step::Continue(Session { panel: None, ..session }, Vec::new());
+    if key.code == KeyCode::Esc {
+        return Step::Continue(Session { search: None, ..session }, Vec::new());
     }
 
     if key.code == KeyCode::Enter {

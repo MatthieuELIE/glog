@@ -2434,3 +2434,49 @@ fn enter_during_a_search_input_with_the_panel_open_runs_the_search_and_keeps_the
         assert_eq!(mantle_columns(&buffer, y), (40..100).collect::<Vec<u16>>(), "{y}");
     }
 }
+
+#[test]
+fn escape_closes_the_open_panel() {
+    let without = draw_inputs(&five_commits(), 100, 5, &typed("j"));
+    let closed = draw_inputs(&five_commits(), 100, 5, &[opened("j"), vec![press_key(KeyCode::Esc)]].concat());
+
+    assert_eq!(closed, without);
+}
+
+#[test]
+fn escape_with_the_panel_open_keeps_the_active_search_and_the_next_escape_clears_it() {
+    let log = bob_on_rows_one_and_three();
+    let closed = [bob_search(), opened(""), vec![press_key(KeyCode::Esc)]].concat();
+    let cleared = [closed.clone(), vec![press_key(KeyCode::Esc)]].concat();
+
+    assert_eq!(draw_inputs(&log, 100, 5, &closed), draw_inputs(&log, 100, 5, &bob_search()));
+    assert_eq!(
+        draw_inputs(&log, 100, 5, &cleared),
+        draw_inputs(&log, 100, 5, &[bob_search(), vec![press_key(KeyCode::Esc)]].concat())
+    );
+}
+
+#[test]
+fn escape_during_a_search_input_with_the_panel_open_closes_the_input_and_keeps_the_panel_and_the_search() {
+    let log = bob_on_rows_one_and_three();
+    let open = [bob_search(), opened("")].concat();
+    let abandoned = [open.clone(), typed("/Ann"), vec![press_key(KeyCode::Esc)]].concat();
+
+    assert_eq!(draw_inputs(&log, 100, 5, &abandoned), draw_inputs(&log, 100, 5, &open));
+}
+
+#[test]
+fn y_with_the_panel_open_copies_the_full_hash_of_the_selected_commit_and_shows_the_notice() {
+    let inputs = [opened("j"), typed("y")].concat();
+
+    assert_eq!(effects_after(&twins_log(), &inputs), vec![Effect::Copy(full_hash('2'))]);
+    assert!(last_row(&draw_inputs(&twins_log(), 100, 5, &inputs)).starts_with("copied abcdef0 "));
+}
+
+#[test]
+fn y_with_the_panel_open_is_a_character_of_the_query_during_the_input() {
+    let inputs = [opened(""), typed("/y")].concat();
+
+    assert_eq!(effects_after(&twins_log(), &inputs), Vec::new());
+    assert!(last_row(&draw_inputs(&twins_log(), 100, 5, &inputs)).starts_with("/y "));
+}
