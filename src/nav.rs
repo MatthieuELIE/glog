@@ -235,6 +235,10 @@ pub fn advance(mut session: Session, key: KeyEvent, history: &History, terminal_
         return Step::Continue(Session { search: None, ..session }, Vec::new());
     }
 
+    if key.code == KeyCode::Enter && session.panel.is_some() {
+        return Step::Continue(Session { panel: None, ..session }, Vec::new());
+    }
+
     if key.code == KeyCode::Enter {
         return Step::Continue(
             Session {

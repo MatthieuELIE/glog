@@ -2416,3 +2416,21 @@ fn enter_during_a_search_input_runs_the_search_and_opens_no_panel() {
         assert_eq!(mantle_columns(&buffer, y), Vec::<u16>::new(), "{y}");
     }
 }
+
+#[test]
+fn enter_closes_the_open_panel() {
+    let without = draw_inputs(&five_commits(), 100, 5, &typed("j"));
+    let closed = draw_inputs(&five_commits(), 100, 5, &[opened("j"), vec![press_key(KeyCode::Enter)]].concat());
+
+    assert_eq!(closed, without);
+}
+
+#[test]
+fn enter_during_a_search_input_with_the_panel_open_runs_the_search_and_keeps_the_panel_open() {
+    let buffer = draw_inputs(&five_commits(), 100, 5, &[opened(""), searching("commit c")].concat());
+
+    assert_eq!(highlighted_rows(&buffer), vec![2]);
+    for y in 0..5 {
+        assert_eq!(mantle_columns(&buffer, y), (40..100).collect::<Vec<u16>>(), "{y}");
+    }
+}
