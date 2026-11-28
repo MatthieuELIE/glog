@@ -168,7 +168,7 @@ fn advance_moves_the_selection_and_follows_the_node() {
 
     let step = advance(Session::default(), key(KeyCode::Char('j'), NONE), &history, 60, 10);
 
-    assert_eq!(step, Step::Continue(session(view(1, 0, 0))));
+    assert_eq!(step, Step::Continue(session(view(1, 0, 0)), Vec::new()));
 }
 
 #[test]
@@ -186,7 +186,7 @@ fn advance_ignores_a_key_that_is_not_a_character() {
     for code in [KeyCode::Enter, KeyCode::Esc, KeyCode::Backspace] {
         assert_eq!(
             advance(session(view(2, 0, 0)), key(code, NONE), &history, 60, 10),
-            Step::Continue(session(view(2, 0, 0)))
+            Step::Continue(session(view(2, 0, 0)), Vec::new())
         );
     }
 }
@@ -195,16 +195,19 @@ fn advance_ignores_a_key_that_is_not_a_character() {
 fn advance_during_the_input_types_q_and_quits_only_on_ctrl_c() {
     let history = history_of(5);
     let opened = advance(Session::default(), key(KeyCode::Char('/'), NONE), &history, 60, 10);
-    let Step::Continue(opened) = opened else { panic!("the slash quit") };
+    let Step::Continue(opened, _) = opened else { panic!("the slash quit") };
 
     let typed = advance(opened.clone(), key(KeyCode::Char('q'), NONE), &history, 60, 10);
 
     assert_eq!(
         typed,
-        Step::Continue(Session {
-            input: Some("q".to_string()),
-            ..opened.clone()
-        })
+        Step::Continue(
+            Session {
+                input: Some("q".to_string()),
+                ..opened.clone()
+            },
+            Vec::new()
+        )
     );
     assert_eq!(advance(opened, key(KeyCode::Char('c'), CTRL), &history, 60, 10), Step::Quit);
 }
